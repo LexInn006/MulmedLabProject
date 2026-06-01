@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProfileStore } from '../stores/profileStore'
 import { musicVideos } from '../data/musicVideos'
-import type { MvData } from '../data/musicVideos'
 import type { SongData } from '../data/songs'
 import NavBar from '../components/NavBar.vue'
 import SearchBar from '../components/SearchBar.vue'
@@ -36,7 +35,8 @@ const filteredMVs = computed(() => {
   )
 })
 
-const goToMVDetail = (id: number) => {
+const goToMVDetail = (payload: any) => {
+  const id = typeof payload === 'number' ? payload : payload.id;
   router.push(`/music-video/${id}`)
 }
 </script>
