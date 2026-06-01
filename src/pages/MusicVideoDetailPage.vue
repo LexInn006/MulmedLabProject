@@ -1,100 +1,81 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { musicVideos } from '../data/musicVideos'
+import { songs } from '../data/songs'
 import { usePlayerStore } from '../stores/playerStore'
 import NavBar from '../components/NavBar.vue'
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Maximize, Music } from 'lucide-vue-next'
+import { Play, Pause, SkipBack, SkipForward, Maximize, Minimize, Music } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
 const player = usePlayerStore()
 
 const video = ref<HTMLVideoElement | null>(null)
-const isPlaying = ref(false)
-const volume = ref(1)
-const duration = ref(0)
-const currentTime = ref(0)
-const isMuted = ref(false)
-const showControls = ref(true)
-let controlTimeout: number | null = null
+const videoReady = ref(false)
 
 const mvId = computed(() => Number(route.params.id))
 const currIdx = ref(musicVideos.findIndex(mv => mv.id === mvId.value))
-const currMV = computed(() => musicVideos[currIdx.value])
+const currMV = computed(() => musicVideos[currIdx.value] || musicVideos[0])
+const currAssociatedSong = computed(() => songs.find(s => s.id === currMV.value.songId) || songs[0])
 
-const formatTime = (seconds: number) => {
-  const min = Math.floor(seconds / 60)
-  const sec = Math.floor(seconds % 60)
-  return `${min}:${sec.toString().padStart(2, '0')}`
+const isThisSongPlaying = computed(() => {
+  return player.currentSong?.id === currAssociatedSong.value.id && player.isPlaying
+})
+
+const tryPlay = () => {
+  if (!video.value) return
+  video.value.play().catch(() => {
+    // Autoplay blocked — user will click to start
+  })
 }
 
-const loadDuration = () => {
-  if (video.value) duration.value = video.value.duration
-}
-
-const isDragging = ref(false)
-
-const updateTime = () => {
-  if (video.value && !isDragging.value) {
-    currentTime.value = video.value.currentTime
+const onVideoCanPlay = () => {
+  videoReady.value = true
+  if (isThisSongPlaying.value) {
+    tryPlay()
   }
 }
+watch(() => isThisSongPlaying.value, (playing) => {
+  if (playing) {
+    if (videoReady.value) {
+      tryPlay()
+    }
+  } else {
+    video.value?.pause()
+  }
+})
+
+// Auto-switch MV when the bottom player changes to a different song
+watch(() => player.currentSong, (newSong) => {
+  if (!newSong) return
+  const matchingMvIdx = musicVideos.findIndex(mv => mv.songId === newSong.id)
+  if (matchingMvIdx !== -1 && matchingMvIdx !== currIdx.value) {
+    currIdx.value = matchingMvIdx
+    // Update URL to stay in sync
+    router.replace(`/music-video/${musicVideos[matchingMvIdx].id}`)
+  }
+})
+
+watch(currMV, () => {
+  videoReady.value = false
+  nextTick(() => {
+    if (video.value) {
+      video.value.load()
+    }
+  })
+})
 
 const playVideo = () => {
-  if (!video.value) return
-  if (video.value.ended) {
-    video.value.currentTime = 0
-  }
-  if (video.value.paused) {
-    // Pause global audio player if playing
-    if (player.isPlaying) {
-      player.togglePlay()
-    }
-    video.value.play()
-    isPlaying.value = true
-    hideControlsDelay()
+  if (player.currentSong?.id === currAssociatedSong.value.id) {
+    player.togglePlay()
   } else {
-    video.value.pause()
-    isPlaying.value = false
-    showControls.value = true
-  }
-}
-
-const changeVolume = (e: Event) => {
-  const vol = parseFloat((e.target as HTMLInputElement).value)
-  volume.value = vol
-  if (video.value) video.value.volume = vol
-  isMuted.value = vol === 0
-}
-
-const changeTime = (e: Event) => {
-  const time = Number((e.target as HTMLInputElement).value)
-  if (video.value) {
-    video.value.currentTime = time
-    currentTime.value = time
-  }
-  isDragging.value = false
-}
-
-const toggleMute = () => {
-  if (isMuted.value || volume.value === 0) {
-    isMuted.value = false
-    volume.value = 1
-    if (video.value) video.value.volume = 1
-  } else {
-    isMuted.value = true
-    if (video.value) video.value.volume = 0
+    player.playSong(currAssociatedSong.value, songs)
   }
 }
 
 const changeTrack = (index: number) => {
   currIdx.value = index
-  isPlaying.value = true
-  setTimeout(() => {
-    video.value?.load()
-    video.value?.play()
-  }, 50)
 }
 
 const nextMV = () => {
@@ -105,31 +86,51 @@ const prevMV = () => {
   changeTrack((currIdx.value - 1 + musicVideos.length) % musicVideos.length)
 }
 
+const videoContainer = ref<HTMLElement | null>(null)
+const isFullscreen = ref(false)
+
+const onFullscreenChange = () => {
+  isFullscreen.value = !!document.fullscreenElement || !!(document as any).webkitFullscreenElement || !!(document as any).msFullscreenElement
+}
+
+onMounted(() => {
+  document.addEventListener('fullscreenchange', onFullscreenChange)
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange)
+  document.addEventListener('MSFullscreenChange', onFullscreenChange)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
+  document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
+  document.removeEventListener('MSFullscreenChange', onFullscreenChange)
+})
+
+const exitFullscreen = () => {
+  if (document.exitFullscreen) {
+    document.exitFullscreen().catch(err => console.error(err))
+  } else if ((document as any).webkitExitFullscreen) {
+    (document as any).webkitExitFullscreen()
+  } else if ((document as any).msExitFullscreen) {
+    (document as any).msExitFullscreen()
+  }
+}
+
 const goFullscreen = () => {
-  video.value?.requestFullscreen()
+  const elem = videoContainer.value || video.value
+  if (!elem) return
+  
+  if (elem.requestFullscreen) {
+    elem.requestFullscreen().catch(err => console.error("Error attempting to enable fullscreen:", err))
+  } else if ((elem as any).webkitRequestFullscreen) { /* Safari */
+    (elem as any).webkitRequestFullscreen()
+  } else if ((elem as any).msRequestFullscreen) { /* IE11 */
+    (elem as any).msRequestFullscreen()
+  }
 }
 
 const goToSong = () => {
   router.push(`/song/${currMV.value.songId}`)
 }
-
-const handleMouseMove = () => {
-  showControls.value = true
-  hideControlsDelay()
-}
-
-const hideControlsDelay = () => {
-  if (controlTimeout) clearTimeout(controlTimeout)
-  if (isPlaying.value) {
-    controlTimeout = setTimeout(() => {
-      showControls.value = false
-    }, 3000) as unknown as number
-  }
-}
-
-onMounted(() => {
-  if (video.value) video.value.volume = volume.value
-})
 </script>
 
 <template>
@@ -140,24 +141,34 @@ onMounted(() => {
     
     <div class="mvd-content">
       <!-- Video Player -->
-      <div class="video-container" @mousemove="handleMouseMove" @mouseleave="showControls = false">
+      <div class="video-container" ref="videoContainer">
         <video
           ref="video"
           class="video-player"
           :src="currMV.video"
-          @loadedmetadata="loadDuration"
-          @timeupdate="updateTime"
+          :poster="currMV.cover"
+          preload="auto"
+          loop
+          muted
+          playsinline
+          @canplay="onVideoCanPlay"
           @click="playVideo"
-          @ended="isPlaying = false; showControls = true"
         ></video>
         
         <!-- Center Play Overlay -->
-        <div class="video-overlay" :class="{ hidden: isPlaying && !showControls }" @click="playVideo">
-          <button class="video-play-overlay" @click.stop="playVideo" :class="{ hidden: isPlaying }">
+        <div class="video-overlay" :class="{ hidden: isThisSongPlaying }" @click="playVideo">
+          <button class="video-play-overlay" @click.stop="playVideo">
             <Play :size="64" fill="currentColor" stroke="currentColor" />
           </button>
         </div>
+        
+        <!-- Exit Fullscreen Button -->
+        <button v-if="isFullscreen" class="exit-fs-btn" @click.stop="exitFullscreen" title="Exit Fullscreen">
+          <Minimize :size="24" />
+        </button>
       </div>
+
+
       
       <!-- Video Info -->
       <div class="mvd-info">
@@ -172,31 +183,16 @@ onMounted(() => {
       
       <!-- Controls -->
       <div class="mvd-controls">
-        <div class="mvd-progress">
-          <span>{{ formatTime(currentTime) }}</span>
-          <input type="range" class="progress-slider" min="0" :max="duration" step="0.1" :value="currentTime" @mousedown="isDragging = true" @change="changeTime" @input="currentTime = Number($event.target.value)" />
-          <span>{{ formatTime(duration) }}</span>
-        </div>
-        
-        <div class="mvd-controls-bottom">
-          <div class="mvd-buttons">
-            <button class="ctrl-btn" @click="prevMV"><SkipBack :size="24" /></button>
-            <button class="play-btn" @click="playVideo">
-              <Pause v-if="isPlaying" :size="24" fill="currentColor" stroke="currentColor" />
-              <Play v-else :size="24" fill="currentColor" stroke="currentColor" style="margin-left: 2px;" />
-            </button>
-            <button class="ctrl-btn" @click="nextMV"><SkipForward :size="24" /></button>
-          </div>
+        <div class="mvd-buttons" style="justify-content: center;">
+          <button class="ctrl-btn" @click="prevMV" title="Previous Video"><SkipBack :size="24" /></button>
           
-          <div class="mvd-actions">
-            <button class="ctrl-btn" @click="toggleMute">
-              <VolumeX v-if="isMuted" :size="20" />
-              <Volume2 v-else :size="20" />
-            </button>
-            <input type="range" class="volume-slider" min="0" max="1" step="0.01" :value="volume" @input="changeVolume" />
-            <div class="divider"></div>
-            <button class="ctrl-btn" @click="goFullscreen" title="Fullscreen"><Maximize :size="20" /></button>
-          </div>
+          <button class="play-btn" @click="playVideo" style="width: 56px; height: 56px;">
+            <Pause v-if="isThisSongPlaying" :size="28" fill="currentColor" stroke="currentColor" />
+            <Play v-else :size="28" fill="currentColor" stroke="currentColor" style="margin-left: 2px;" />
+          </button>
+          
+          <button class="ctrl-btn" @click="nextMV" title="Next Video"><SkipForward :size="24" /></button>
+          <button class="ctrl-btn" @click="goFullscreen" title="Fullscreen" style="position: absolute; right: 56px;"><Maximize :size="24" /></button>
         </div>
       </div>
     </div>
@@ -249,10 +245,12 @@ onMounted(() => {
 
 .video-overlay.hidden {
   opacity: 0;
+  pointer-events: none;
 }
 
 .video-play-overlay {
   background: rgba(0,0,0,0.6);
+  color: #ffffff;
   border: none;
   border-radius: 50%;
   width: 96px;
@@ -318,34 +316,11 @@ onMounted(() => {
   border-radius: var(--radius-md);
 }
 
-.mvd-progress {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.mvd-progress span {
-  font-size: 0.8rem;
-  color: var(--text-subdued);
-  min-width: 40px;
-  text-align: center;
-}
-
-.progress-slider {
-  flex: 1;
-}
-
-.mvd-controls-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 .mvd-buttons {
   display: flex;
   align-items: center;
   gap: 24px;
+  position: relative;
 }
 
 .ctrl-btn {
@@ -367,6 +342,7 @@ onMounted(() => {
   height: 48px;
   border-radius: 50%;
   background-color: var(--text-primary);
+  color: var(--bg-base);
   border: none;
   display: flex;
   align-items: center;
@@ -383,20 +359,26 @@ onMounted(() => {
   transform: scale(0.95);
 }
 
-.mvd-actions {
+.exit-fs-btn {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  background: rgba(0,0,0,0.6);
+  color: #ffffff;
+  border: none;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 10;
 }
 
-.volume-slider {
-  width: 100px;
-}
-
-.divider {
-  width: 1px;
-  height: 24px;
-  background-color: var(--bg-highlight);
-  margin: 0 8px;
+.exit-fs-btn:hover {
+  background: var(--accent);
+  transform: scale(1.1);
 }
 </style>

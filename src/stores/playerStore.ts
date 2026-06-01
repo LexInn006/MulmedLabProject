@@ -1,6 +1,14 @@
 import { defineStore } from 'pinia'
 import type { SongData } from '../data/songs'
 
+function loadLikedSongs(): number[] {
+  try {
+    return JSON.parse(localStorage.getItem('spj_likedSongs') || '[]')
+  } catch {
+    return []
+  }
+}
+
 export const usePlayerStore = defineStore('player', {
   state: () => ({
     currentSong: null as SongData | null,
@@ -8,11 +16,12 @@ export const usePlayerStore = defineStore('player', {
     currentIndex: -1,
     isPlaying: false,
     volume: 1,
+    previousVolume: 1,
     currentTime: 0,
     duration: 0,
     isMuted: false,
     audioElement: null as HTMLAudioElement | null,
-    likedSongs: JSON.parse(localStorage.getItem('spj_likedSongs') || '[]') as number[],
+    likedSongs: loadLikedSongs(),
     isDragging: false
   }),
 
@@ -67,7 +76,7 @@ export const usePlayerStore = defineStore('player', {
       if (this.audioElement) {
         this.audioElement.src = song.audio
         this.audioElement.load()
-        this.audioElement.play()
+        this.audioElement.play().catch(() => {})
         this.isPlaying = true
       }
     },
@@ -79,7 +88,7 @@ export const usePlayerStore = defineStore('player', {
         this.audioElement.pause()
         this.isPlaying = false
       } else {
-        this.audioElement.play()
+        this.audioElement.play().catch(() => {})
         this.isPlaying = true
       }
     },
@@ -113,11 +122,12 @@ export const usePlayerStore = defineStore('player', {
 
     toggleMute() {
       if (!this.audioElement) return
-      if (this.isMuted || this.volume === 0) {
+      if (this.isMuted) {
         this.isMuted = false
-        this.volume = 1 // or restore previous volume
+        this.volume = this.previousVolume || 1
         this.audioElement.volume = this.volume
       } else {
+        this.previousVolume = this.volume
         this.isMuted = true
         this.audioElement.volume = 0
       }
