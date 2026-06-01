@@ -1,8 +1,5 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
-import { Home, Video, User, Heart, Library } from 'lucide-vue-next'
-
-const router = useRouter()
+import { Home, Video, User, Library } from 'lucide-vue-next'
 </script>
 
 <template>
@@ -116,33 +113,7 @@ const router = useRouter()
   align-items: center;
 }
 
-.sidebar-liked {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 10px 16px;
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-weight: 500;
-  font-size: 0.95rem;
-  border-radius: var(--radius-sm);
-  transition: all 0.2s;
-}
 
-.sidebar-liked:hover {
-  color: var(--text-primary);
-  background-color: var(--bg-highlight);
-}
-
-.liked-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  background: linear-gradient(135deg, #450af5, #c4efd9);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 
 @media (max-width: 768px) {
   .sidebar {
