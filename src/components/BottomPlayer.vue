@@ -50,7 +50,7 @@ const onVolume = (e: Event) => {
       </div>
       <div class="player-progress">
         <span class="player-time">{{ player.formattedCurrentTime }}</span>
-        <input type="range" class="progress-slider" min="0" :max="player.duration" step="0.1" :value="player.currentTime" @mousedown="player.isDragging = true" @change="onSeek" @input="player.currentTime = Number($event.target.value)" />
+        <input type="range" class="progress-slider" min="0" :max="player.duration" step="0.1" :value="player.currentTime" @mousedown="player.isDragging = true" @change="onSeek" @input="player.currentTime = Number($event.target.value)" :style="{ '--progress': (player.duration ? (player.currentTime / player.duration) * 100 : 0) + '%' }" />
         <span class="player-time">{{ player.formattedDuration }}</span>
       </div>
     </div>
@@ -61,7 +61,7 @@ const onVolume = (e: Event) => {
         <VolumeX v-if="player.isMuted || player.volume === 0" :size="18" />
         <Volume2 v-else :size="18" />
       </button>
-      <input type="range" class="volume-slider" min="0" max="1" step="0.01" :value="player.volume" @input="onVolume" />
+      <input type="range" class="volume-slider" min="0" max="1" step="0.01" :value="player.volume" @input="onVolume" :style="{ '--progress': (player.volume * 100) + '%' }" />
     </div>
   </div>
 </template>

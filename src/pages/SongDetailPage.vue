@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePlayerStore } from '../stores/playerStore'
+import { useProfileStore } from '../stores/profileStore'
 import { songs } from '../data/songs'
-import type { SongData } from '../data/songs'
 import NavBar from '../components/NavBar.vue'
-import { Play, Pause, Maximize, X, ZoomIn, ZoomOut, Heart } from 'lucide-vue-next'
+import { Play, Pause, Heart, MonitorPlay } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
 const player = usePlayerStore()
+const profileStore = useProfileStore()
 
 const songId = computed(() => Number(route.params.id))
 const currSong = computed(() => songs.find(s => s.id === songId.value) || songs[0])
@@ -26,206 +27,217 @@ const handlePlay = () => {
   }
 }
 
-const playListSong = (song: SongData) => {
-  if (player.currentSong?.id === song.id) {
-    player.togglePlay()
-  } else {
-    player.playSong(song, songs)
-  }
-}
-
 const goToMV = () => {
   if (currSong.value.mv) {
     router.push(`/music-video/${currSong.value.mv}`)
   }
 }
-
-// Fullscreen logic
-const isFullscreen = ref(false)
-const zoomLevel = ref(1)
-
-const openFullscreen = () => {
-  isFullscreen.value = true
-  zoomLevel.value = 1
-}
-
-const closeFullscreen = () => {
-  isFullscreen.value = false
-  zoomLevel.value = 1
-}
-
-const zoomIn = () => {
-  if (zoomLevel.value < 3) zoomLevel.value += 0.3
-}
-
-const zoomOut = () => {
-  if (zoomLevel.value > 0.5) zoomLevel.value -= 0.3
-}
 </script>
 
 <template>
-  <div class="song-detail">
-    <!-- Header -->
-    <div class="detail-header">
-      <NavBar />
-      <div class="detail-hero">
-        <img :src="currSong.cover" class="detail-cover" @click="openFullscreen" title="Click to fullscreen" />
-        <div class="detail-info">
-          <span class="detail-type">Song</span>
-          <h1 class="detail-title">{{ currSong.title }}</h1>
-          <p class="detail-artist">{{ currSong.artist }} • {{ currSong.duration }}</p>
-        </div>
-      </div>
-    </div>
+  <div class="song-detail-page" :class="{ 'is-light': !profileStore.isDarkMode }">
+    <!-- Blurred Background -->
+    <div 
+      class="bg-blur"
+      :style="{ backgroundImage: `url(${currSong.cover})` }"
+    ></div>
+    <div class="bg-overlay"></div>
     
-    <!-- Action Bar -->
-    <div class="detail-actions">
-      <button class="play-big-btn" @click="handlePlay">
-        <Pause v-if="isCurrentPlaying" :size="24" fill="currentColor" stroke="currentColor" />
-        <Play v-else :size="24" fill="currentColor" stroke="currentColor" style="margin-left: 2px;" />
-      </button>
-      <button class="like-btn" @click="player.toggleLike(currSong.id)">
-        <Heart :size="32" :fill="player.isLiked(currSong.id) ? '#8b5cf6' : 'none'" :stroke="player.isLiked(currSong.id) ? '#8b5cf6' : 'var(--text-secondary)'" />
-      </button>
-      <button class="mv-btn" @click="goToMV" v-if="currSong.mv">
-        <Maximize :size="16" /> Watch Music Video
-      </button>
-    </div>
-    
-    <!-- Tracklist -->
-    <div class="tracklist">
-      <div class="track-header">
-        <span>#</span>
-        <span>Title</span>
-        <span style="margin-left: auto;">Duration</span>
+    <div class="content-wrapper">
+      <div class="nav-container">
+        <NavBar />
       </div>
-      <div class="track-divider"></div>
       
-      <div 
-        v-for="(song, index) in songs" 
-        :key="song.id" 
-        class="track-row" 
-        :class="{ active: player.currentSong?.id === song.id }" 
-        @click="playListSong(song)"
-      >
-        <div class="track-num">
-          <Play v-if="player.currentSong?.id === song.id && player.isPlaying" :size="14" fill="var(--accent)" stroke="var(--accent)" />
-          <span v-else>{{ index + 1 }}</span>
+      <div class="detail-main">
+        <div class="cover-container">
+          <img :src="currSong.cover" class="main-cover" />
         </div>
-        <img :src="song.cover" class="track-cover" />
-        <div class="track-info">
-          <span class="track-title" :style="{ color: player.currentSong?.id === song.id ? 'var(--accent)' : 'var(--text-primary)' }">{{ song.title }}</span>
-          <span class="track-artist">{{ song.artist }}</span>
+        
+        <div class="info-container">
+          <span class="type-label">Single</span>
+          <h1 class="song-title">{{ currSong.title }}</h1>
+          <p class="song-artist">{{ currSong.artist }} • {{ currSong.duration }}</p>
+          
+          <div class="action-buttons">
+            <button class="play-btn" @click="handlePlay">
+              <Pause v-if="isCurrentPlaying" :size="32" fill="currentColor" stroke="currentColor" />
+              <Play v-else :size="32" fill="currentColor" stroke="currentColor" style="margin-left: 4px;" />
+            </button>
+            
+            <button class="like-btn" @click="player.toggleLike(currSong.id)">
+              <Heart :size="40" :fill="player.isLiked(currSong.id) ? '#8b5cf6' : 'none'" :stroke="player.isLiked(currSong.id) ? '#8b5cf6' : (profileStore.isDarkMode ? '#ffffff' : '#000000')" />
+            </button>
+            
+            <button v-if="currSong.mv" class="mv-btn" @click="goToMV">
+              <MonitorPlay :size="20" /> Watch Music Video
+            </button>
+          </div>
         </div>
-        <span class="track-duration">{{ song.duration }}</span>
       </div>
-    </div>
-    
-    <!-- Fullscreen Overlay -->
-    <div v-if="isFullscreen" class="fullscreen-overlay" @click.self="closeFullscreen">
-      <div class="fullscreen-controls">
-        <button class="fs-btn" @click="zoomIn"><ZoomIn :size="22" /></button>
-        <button class="fs-btn" @click="zoomOut"><ZoomOut :size="22" /></button>
-        <button class="fs-btn" @click="closeFullscreen"><X :size="22" /></button>
-      </div>
-      <img :src="currSong.cover" class="fullscreen-img" :style="{ transform: `scale(${zoomLevel})` }" />
     </div>
   </div>
 </template>
 
 <style scoped>
-.song-detail {
+.song-detail-page {
+  position: relative;
   min-height: 100vh;
+  overflow: hidden;
+  color: #ffffff;
 }
 
-.detail-header {
-  background: linear-gradient(180deg, rgba(139,92,246,0.25) 0%, var(--bg-base) 100%);
-  padding-bottom: 24px;
+.song-detail-page.is-light {
+  color: #111111;
 }
 
-.detail-hero {
+.bg-blur {
+  position: absolute;
+  inset: -10%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(100px);
+  z-index: 0;
+  opacity: 0.5;
+  transition: background-image 0.5s ease;
+}
+
+.is-light .bg-blur {
+  opacity: 0.2;
+}
+
+.bg-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.3) 0%, var(--bg-base) 100%);
+  z-index: 1;
+}
+
+.is-light .bg-overlay {
+  background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, var(--bg-base) 100%);
+}
+
+.content-wrapper {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
   display: flex;
-  align-items: flex-end;
-  gap: 24px;
-  padding: 24px 32px;
+  flex-direction: column;
 }
 
-@media (max-width: 600px) {
-  .detail-hero {
+.nav-container {
+  padding: 0 32px;
+}
+
+.detail-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 64px;
+  padding: 48px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .detail-main {
     flex-direction: column;
-    align-items: center;
     text-align: center;
+    gap: 32px;
   }
 }
 
-.detail-cover {
-  width: 232px;
-  height: 232px;
-  border-radius: var(--radius-sm);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-  cursor: pointer;
-  transition: transform 0.2s;
-  object-fit: cover;
+.cover-container {
+  flex-shrink: 0;
 }
 
-.detail-cover:hover {
+.main-cover {
+  width: 400px;
+  height: 400px;
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.is-light .main-cover {
+  box-shadow: 0 24px 64px rgba(0,0,0,0.2);
+}
+
+.main-cover:hover {
   transform: scale(1.02);
 }
 
-.detail-info {
+@media (max-width: 768px) {
+  .main-cover {
+    width: 300px;
+    height: 300px;
+  }
+}
+
+.info-container {
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: center;
 }
 
-.detail-type {
-  font-size: 0.75rem;
+@media (max-width: 768px) {
+  .info-container {
+    align-items: center;
+  }
+}
+
+.type-label {
+  font-size: 0.9rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+  color: var(--text-secondary);
 }
 
-.detail-title {
-  font-size: clamp(2rem, 5vw, 4rem);
+.song-title {
+  font-size: clamp(3rem, 6vw, 5rem);
   font-weight: 900;
-  margin: 8px 0;
+  margin: 0 0 16px 0;
   line-height: 1.1;
+  letter-spacing: -1px;
 }
 
-.detail-artist {
-  color: var(--text-primary);
-  font-size: 1rem;
+.song-artist {
+  font-size: 1.2rem;
   font-weight: 600;
-  margin: 0;
+  color: var(--text-secondary);
+  margin: 0 0 40px 0;
 }
 
-.detail-actions {
+.action-buttons {
   display: flex;
   align-items: center;
-  gap: 32px;
-  padding: 24px 32px;
+  gap: 24px;
 }
 
-.play-big-btn {
-  width: 56px;
-  height: 56px;
+.play-btn {
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
-  background-color: var(--accent);
+  background-color: var(--text-primary);
+  color: var(--bg-base);
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.1s, background-color 0.2s;
-  box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+  transition: transform 0.2s, background-color 0.2s;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
 }
 
-.play-big-btn:hover {
+.play-btn:hover {
   transform: scale(1.05);
-  background-color: var(--accent-hover);
 }
 
-.play-big-btn:active {
+.play-btn:active {
   transform: scale(0.95);
 }
 
@@ -237,6 +249,7 @@ const zoomOut = () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 8px;
 }
 
 .like-btn:hover {
@@ -246,152 +259,27 @@ const zoomOut = () => {
 .mv-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background-color: var(--bg-elevated);
-  color: var(--text-primary);
-  border: 1px solid var(--text-subdued);
-  border-radius: var(--radius-full);
-  padding: 8px 16px;
-  font-size: 0.85rem;
+  gap: 12px;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 32px;
+  padding: 12px 24px;
+  font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
-  margin-left: auto;
+  backdrop-filter: blur(8px);
+}
+
+.is-light .mv-btn {
+  background-color: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
 }
 
 .mv-btn:hover {
-  background-color: var(--bg-highlight);
-  border-color: var(--text-primary);
+  background-color: var(--text-primary);
+  color: var(--bg-base);
   transform: scale(1.02);
-}
-
-/* Tracklist */
-.tracklist {
-  padding: 0 32px 32px;
-}
-
-.track-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 8px 16px;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.track-header span:first-child {
-  width: 24px;
-  text-align: center;
-}
-
-.track-divider {
-  height: 1px;
-  background-color: var(--bg-highlight);
-  margin: 0 0 16px 0;
-}
-
-.track-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  transition: background-color 0.2s;
-  cursor: pointer;
-}
-
-.track-row:hover {
-  background-color: var(--bg-highlight);
-}
-
-.track-row.active {
-  background-color: rgba(255,255,255,0.05);
-}
-
-[data-theme='light'] .track-row.active {
-  background-color: rgba(0,0,0,0.05);
-}
-
-.track-num {
-  width: 24px;
-  color: var(--text-secondary);
-  font-size: 0.95rem;
-  text-align: center;
-}
-
-.track-cover {
-  width: 40px;
-  height: 40px;
-  border-radius: 4px;
-  object-fit: cover;
-}
-
-.track-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.track-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
-.track-artist {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-
-.track-duration {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  margin-left: auto;
-}
-
-/* Fullscreen Overlay */
-.fullscreen-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.95);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
-
-.fullscreen-controls {
-  position: absolute;
-  top: 24px;
-  right: 24px;
-  display: flex;
-  gap: 12px;
-}
-
-.fs-btn {
-  background: rgba(255,255,255,0.1);
-  border: none;
-  color: white;
-  border-radius: 50%;
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.fs-btn:hover {
-  background: rgba(255,255,255,0.2);
-}
-
-.fullscreen-img {
-  max-width: 90vw;
-  max-height: 85vh;
-  border-radius: 12px;
-  object-fit: contain;
-  transition: transform 0.3s ease;
 }
 </style>
