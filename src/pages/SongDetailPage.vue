@@ -167,7 +167,6 @@ const toggleDropdown = () => {
 .song-detail-page {
   position: relative;
   min-height: 100vh;
-  overflow: hidden;
   color: #ffffff;
 }
 
@@ -176,13 +175,17 @@ const toggleDropdown = () => {
 }
 
 .bg-blur {
-  position: absolute;
-  inset: -10%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background-size: cover;
   background-position: center;
   filter: blur(100px);
   z-index: 0;
   opacity: 0.5;
+  pointer-events: none;
   transition: background-image 0.5s ease;
 }
 
@@ -191,10 +194,14 @@ const toggleDropdown = () => {
 }
 
 .bg-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,0.3) 0%, var(--bg-base) 100%);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 100%);
   z-index: 1;
+  pointer-events: none;
 }
 
 .is-light .bg-overlay {
@@ -207,6 +214,7 @@ const toggleDropdown = () => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: visible;
 }
 
 .nav-container {
@@ -223,6 +231,7 @@ const toggleDropdown = () => {
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
+  overflow: visible;
 }
 
 @media (max-width: 768px) {
@@ -265,6 +274,7 @@ const toggleDropdown = () => {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  overflow: visible;
 }
 
 @media (max-width: 768px) {
@@ -302,6 +312,8 @@ const toggleDropdown = () => {
   align-items: center;
   gap: 24px;
   flex-wrap: wrap;
+  overflow: visible;
+  position: relative;
 }
 
 .play-btn {
