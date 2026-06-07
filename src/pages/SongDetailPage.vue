@@ -3,11 +3,11 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePlayerStore } from '../stores/playerStore'
 import { useProfileStore } from '../stores/profileStore'
-// Import playlist store yang tadi sudah dibuat
 import { usePlaylistStore } from '../stores/playlistStore'
 import { songs } from '../data/songs'
 import NavBar from '../components/NavBar.vue'
-import { Play, Pause, Heart, MonitorPlay, ListPlus, Check, X } from 'lucide-vue-next'
+import { Play, Pause, Heart, MonitorPlay, ListPlus, Check, ListMusic } from 'lucide-vue-next'
+import { onMounted, onUnmounted } from 'vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,13 +15,16 @@ const player = usePlayerStore()
 const profileStore = useProfileStore()
 const playlistStore = usePlaylistStore()
 
+// Ambil ID lagu dari URL dan cari datanya
 const songId = computed(() => Number(route.params.id))
 const currSong = computed(() => songs.find(s => s.id === songId.value) || songs[0])
 
+// Cek apakah lagu ini sedang diputar
 const isCurrentPlaying = computed(() => {
   return player.currentSong?.id === currSong.value.id && player.isPlaying
 })
 
+// Toggle play/pause lagu ini
 const handlePlay = () => {
   if (player.currentSong?.id === currSong.value.id) {
     player.togglePlay()
@@ -30,14 +33,41 @@ const handlePlay = () => {
   }
 }
 
+// Pergi ke halaman Music Video lagu ini
 const goToMV = () => {
   if (currSong.value.mv) {
     router.push(`/music-video/${currSong.value.mv}`)
   }
 }
 
-// State untuk dropdown "Add to Playlist"
-const showPlaylistDropdown = ref(false)
+// State buka/tutup dropdown playlist (dibuat sendiri, bukan Bootstrap)
+const showDropdown = ref(false)
+
+// Pesan sukses sementara setelah tambah lagu
+const successMsg = ref('')
+
+// Toggle dropdown
+const toggleDropdown = () => {
+  showDropdown.value = !showDropdown.value
+}
+
+// Tutup dropdown kalau klik di luar area dropdown
+const handleClickOutside = (e: MouseEvent) => {
+  const wrapper = document.querySelector('.playlist-wrapper')
+  if (wrapper && !wrapper.contains(e.target as Node)) {
+    showDropdown.value = false
+  }
+}
+
+// Pasang event listener saat halaman dibuka
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+
+// Lepas event listener saat halaman ditutup agar tidak memory leak
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 
 // Cek apakah lagu sudah ada di playlist tertentu
 const isSongInPlaylist = (playlistId: number) => {
@@ -48,44 +78,48 @@ const isSongInPlaylist = (playlistId: number) => {
 
 // Tambah lagu ke playlist yang dipilih
 const addToPlaylist = (playlistId: number) => {
-  // Kalau lagu sudah ada, tidak perlu tambah lagi
   if (isSongInPlaylist(playlistId)) return
   playlistStore.addSongToPlaylist(playlistId, currSong.value)
-  // Tutup dropdown setelah berhasil tambah
-  showPlaylistDropdown.value = false
-}
 
-// Toggle buka/tutup dropdown playlist
-const toggleDropdown = () => {
-  showPlaylistDropdown.value = !showPlaylistDropdown.value
+  // Tampilkan pesan sukses selama 2 detik lalu tutup dropdown
+  successMsg.value = 'Added to playlist!'
+  setTimeout(() => {
+    successMsg.value = ''
+    showDropdown.value = false
+  }, 1500)
 }
 </script>
 
 <template>
   <div class="song-detail-page" :class="{ 'is-light': !profileStore.isDarkMode }">
-    <!-- Blurred Background -->
-    <div
-      class="bg-blur"
-      :style="{ backgroundImage: `url(${currSong.cover})` }"
-    ></div>
+
+    <!-- Background blur dari cover lagu -->
+    <div class="bg-blur" :style="{ backgroundImage: `url(${currSong.cover})` }"></div>
     <div class="bg-overlay"></div>
 
+
     <div class="content-wrapper">
+
+      <!-- Navbar Bootstrap (1/2) -->
       <div class="nav-container">
         <NavBar />
       </div>
 
       <div class="detail-main">
+
+        <!-- Cover lagu -->
         <div class="cover-container">
           <img :src="currSong.cover" class="main-cover" />
         </div>
 
+        <!-- Info + tombol aksi -->
         <div class="info-container">
           <span class="type-label">Single</span>
           <h1 class="song-title">{{ currSong.title }}</h1>
           <p class="song-artist">{{ currSong.artist }} • {{ currSong.duration }}</p>
 
           <div class="action-buttons">
+
             <!-- Tombol Play/Pause -->
             <button class="play-btn" @click="handlePlay">
               <Pause v-if="isCurrentPlaying" :size="32" fill="currentColor" stroke="currentColor" />
@@ -106,58 +140,62 @@ const toggleDropdown = () => {
               <MonitorPlay :size="20" /> Watch Music Video
             </button>
 
-            <!-- Tombol Add to Playlist + Dropdown -->
+            <!-- Tombol Add to Playlist + Dropdown Vue murni (bukan Bootstrap) -->
             <div class="playlist-wrapper">
               <button class="add-playlist-btn" @click="toggleDropdown">
                 <ListPlus :size="20" />
                 Add to Playlist
               </button>
 
-              <!-- Dropdown daftar playlist -->
-              <div v-if="showPlaylistDropdown" class="playlist-dropdown">
+              <!-- Dropdown dibuat dari CSS biasa, bukan Bootstrap -->
+              <div v-if="showDropdown" class="spj-dropdown" @click.stop>
 
-                <!-- Header dropdown + tombol tutup -->
-                <div class="dropdown-header">
-                  <span>Add to Playlist</span>
-                  <button class="dropdown-close" @click="showPlaylistDropdown = false">
-                    <X :size="16" />
-                  </button>
+                <!-- Pesan sukses setelah tambah lagu -->
+                <div v-if="successMsg" class="spj-success-msg">
+                  <Check :size="16" />
+                  {{ successMsg }}
                 </div>
 
-                <!-- Kalau belum ada playlist sama sekali -->
-                <div v-if="playlistStore.playlists.length === 0" class="dropdown-empty">
+                <!-- Kalau belum ada playlist -->
+                <div v-else-if="playlistStore.playlists.length === 0" class="spj-dropdown-empty">
+                  <ListMusic :size="24" />
                   <p>No playlists yet</p>
-                  <small>Create a playlist first from the sidebar</small>
+                  <small>Create one from the sidebar first</small>
                 </div>
 
-                <!-- Daftar playlist yang bisa dipilih -->
-                <div
-                  v-for="playlist in playlistStore.playlists"
-                  :key="playlist.id"
-                  class="dropdown-item"
-                  :class="{ 'already-added': isSongInPlaylist(playlist.id) }"
-                  @click="addToPlaylist(playlist.id)"
-                >
-                  <!-- Cover playlist kecil -->
-                  <div class="dropdown-cover">
-                    <img v-if="playlist.cover" :src="playlist.cover" alt="cover" />
-                    <span v-else>🎵</span>
-                  </div>
+                <!-- Daftar playlist -->
+                <template v-else>
+                  <p class="spj-dropdown-title">Add to Playlist</p>
+                  <div
+                    v-for="playlist in playlistStore.playlists"
+                    :key="playlist.id"
+                    class="spj-dropdown-item"
+                    :class="{ 'spj-already-added': isSongInPlaylist(playlist.id) }"
+                    @click="addToPlaylist(playlist.id)"
+                  >
+                    <!-- Cover playlist kecil -->
+                    <div class="spj-item-cover">
+                      <img v-if="playlist.cover" :src="playlist.cover" alt="cover" />
+                      <ListMusic v-else :size="16" />
+                    </div>
 
-                  <div class="dropdown-info">
-                    <span class="dropdown-name">{{ playlist.name }}</span>
-                    <span class="dropdown-count">{{ playlist.songs.length }} songs</span>
-                  </div>
+                    <!-- Nama + jumlah lagu -->
+                    <div class="spj-item-info">
+                      <span class="spj-item-name">{{ playlist.name }}</span>
+                      <span class="spj-item-count">{{ playlist.songs.length }} songs</span>
+                    </div>
 
-                  <!-- Icon centang kalau lagu sudah ada di playlist ini -->
-                  <Check v-if="isSongInPlaylist(playlist.id)" :size="16" class="check-icon" />
-                </div>
+                    <!-- Centang kalau sudah ditambahkan -->
+                    <Check v-if="isSongInPlaylist(playlist.id)" :size="16" class="spj-check" />
+                  </div>
+                </template>
 
               </div>
             </div>
 
           </div>
         </div>
+
       </div>
     </div>
   </div>
@@ -208,13 +246,13 @@ const toggleDropdown = () => {
   background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, var(--bg-base) 100%);
 }
 
+
 .content-wrapper {
   position: relative;
   z-index: 2;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: visible;
 }
 
 .nav-container {
@@ -231,7 +269,6 @@ const toggleDropdown = () => {
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
-  overflow: visible;
 }
 
 @media (max-width: 768px) {
@@ -274,7 +311,6 @@ const toggleDropdown = () => {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  overflow: visible;
 }
 
 @media (max-width: 768px) {
@@ -312,8 +348,6 @@ const toggleDropdown = () => {
   align-items: center;
   gap: 24px;
   flex-wrap: wrap;
-  overflow: visible;
-  position: relative;
 }
 
 .play-btn {
@@ -388,7 +422,6 @@ const toggleDropdown = () => {
   background: none;
   color: var(--text-secondary);
   border: none;
-  border-radius: 32px;
   padding: 8px 4px;
   font-size: 0.95rem;
   font-weight: 600;
@@ -401,124 +434,125 @@ const toggleDropdown = () => {
   transform: scale(1.05);
 }
 
-.playlist-dropdown {
+/* Wrapper untuk posisi dropdown */
+.playlist-wrapper {
+  position: relative;
+  z-index: 9999;
+}
+
+/* Dropdown murni Vue + CSS, bukan Bootstrap */
+.spj-dropdown {
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  width: 280px;
-  max-height: 320px;
+  width: 260px;
+  max-height: 300px;
   overflow-y: auto;
-  overflow-x: hidden;
   background-color: var(--bg-elevated);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
-  z-index: 999;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  z-index: 9999;
+  padding: 8px 0;
 }
 
-.dropdown-cover {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  min-height: 40px;
-  border-radius: 6px;
-  background-color: var(--bg-surface);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  overflow: hidden;
-  font-size: 1.2rem;
-}
-
-.dropdown-cover img {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  min-height: 40px;
-  object-fit: cover;
-  display: block;
-  flex-shrink: 0;
-}
-
-/* Wrapper harus relative agar dropdown muncul di posisi yang benar */
-.playlist-wrapper {
-  position: relative;
-}
-
-.dropdown-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 16px 12px;
-  font-size: 0.9rem;
+.spj-dropdown-title {
+  font-size: 0.8rem;
   font-weight: 700;
-  color: var(--text-primary);
-  border-bottom: 1px solid var(--bg-highlight);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-subdued);
+  padding: 8px 16px 4px;
+  margin: 0;
 }
 
-.dropdown-close {
-  background: none;
-  border: none;
-  color: var(--text-subdued);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
+/* Pesan sukses setelah tambah lagu */
+.spj-success-msg {
   display: flex;
   align-items: center;
-  transition: color 0.2s;
+  gap: 8px;
+  padding: 20px 16px;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 
-.dropdown-close:hover {
-  color: var(--text-primary);
-}
-
-.dropdown-empty {
+/* Empty state kalau belum ada playlist */
+.spj-dropdown-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   padding: 24px 16px;
   text-align: center;
   color: var(--text-subdued);
 }
 
-.dropdown-empty p {
-  margin: 0 0 4px;
+.spj-dropdown-empty p {
+  margin: 0;
   font-size: 0.9rem;
   font-weight: 600;
+  color: var(--text-secondary);
 }
 
-.dropdown-empty small {
-  font-size: 0.8rem;
+.spj-dropdown-empty small {
+  font-size: 0.78rem;
 }
 
-.dropdown-item {
+/* Item setiap playlist di dropdown */
+.spj-dropdown-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 16px;
+  padding: 8px 16px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.15s;
 }
 
-.dropdown-item:hover {
+.spj-dropdown-item:hover {
   background-color: var(--bg-highlight);
 }
 
-.dropdown-item.already-added {
+/* Style kalau lagu sudah ada di playlist ini */
+.spj-already-added {
   opacity: 0.5;
   cursor: default;
 }
 
-.dropdown-item.already-added:hover {
+.spj-already-added:hover {
   background-color: transparent;
 }
 
-.dropdown-info {
+/* Cover playlist kecil di dalam dropdown */
+.spj-item-cover {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 6px;
+  background-color: var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--text-subdued);
+  flex-shrink: 0;
+}
+
+.spj-item-cover img {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  display: block;
+}
+
+.spj-item-info {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-.dropdown-name {
-  font-size: 0.9rem;
+.spj-item-name {
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
@@ -526,12 +560,12 @@ const toggleDropdown = () => {
   text-overflow: ellipsis;
 }
 
-.dropdown-count {
-  font-size: 0.78rem;
+.spj-item-count {
+  font-size: 0.75rem;
   color: var(--text-subdued);
 }
 
-.check-icon {
+.spj-check {
   color: var(--accent);
   flex-shrink: 0;
 }

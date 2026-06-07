@@ -8,32 +8,36 @@ const router = useRouter()
 </script>
 
 <template>
-  <!-- Keep bootstrap navbar class to fulfill requirement technically -->
-  <nav class="navbar" style="display:none"></nav>
-  
-  <header class="topbar">
-    <!-- Left: Nav arrows -->
-    <div class="topbar-left">
-      <button class="topbar-arrow" @click="router.back()" title="Go back"><ChevronLeft :size="22" /></button>
-      <button class="topbar-arrow" @click="router.forward()" title="Go forward"><ChevronRight :size="22" /></button>
+  <!-- Bootstrap Navbar Component (1/2) — aktif dipakai -->
+  <nav class="navbar spj-topbar">
+    <!-- Kiri: tombol navigasi back/forward -->
+    <div class="spj-topbar-left">
+      <button class="spj-topbar-arrow" @click="router.back()" title="Go back">
+        <ChevronLeft :size="22" />
+      </button>
+      <button class="spj-topbar-arrow" @click="router.forward()" title="Go forward">
+        <ChevronRight :size="22" />
+      </button>
     </div>
-    
-    <!-- Center: Slot for Search or other content -->
-    <div class="topbar-center">
+
+    <!-- Tengah: slot untuk search bar atau konten lain -->
+    <div class="spj-topbar-center">
       <slot></slot>
     </div>
-    
-    <!-- Right: User info -->
-    <div class="topbar-right" @click="router.push('/profile')">
-      <img v-if="store.profileImage" :src="store.profileImage" class="topbar-avatar" />
-      <div v-else class="topbar-avatar topbar-avatar-placeholder">{{ store.username.charAt(0).toUpperCase() }}</div>
-      <span class="topbar-username">{{ store.username }}</span>
+
+    <!-- Kanan: foto profil + username, klik untuk ke halaman profile -->
+    <div class="spj-topbar-right" @click="router.push('/profile')">
+      <img v-if="store.profileImage" :src="store.profileImage" class="spj-topbar-avatar" />
+      <div v-else class="spj-topbar-avatar spj-topbar-avatar-placeholder">
+        {{ store.username.charAt(0).toUpperCase() }}
+      </div>
+      <span class="spj-topbar-username">{{ store.username }}</span>
     </div>
-  </header>
+  </nav>
 </template>
 
 <style scoped>
-.topbar {
+.spj-topbar {
   height: var(--topbar-height);
   display: flex;
   align-items: center;
@@ -45,12 +49,12 @@ const router = useRouter()
   background: transparent;
 }
 
-.topbar-left {
+.spj-topbar-left {
   display: flex;
   gap: 8px;
 }
 
-.topbar-arrow {
+.spj-topbar-arrow {
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -64,15 +68,15 @@ const router = useRouter()
   transition: background-color 0.2s;
 }
 
-.topbar-arrow:hover {
+.spj-topbar-arrow:hover {
   background-color: var(--bg-highlight);
 }
 
-.topbar-center {
+.spj-topbar-center {
   flex: 1;
 }
 
-.topbar-right {
+.spj-topbar-right {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -83,18 +87,18 @@ const router = useRouter()
   transition: background-color 0.2s;
 }
 
-.topbar-right:hover {
+.spj-topbar-right:hover {
   background-color: var(--bg-highlight);
 }
 
-.topbar-avatar {
+.spj-topbar-avatar {
   width: 28px;
   height: 28px;
   border-radius: 50%;
   object-fit: cover;
 }
 
-.topbar-avatar-placeholder {
+.spj-topbar-avatar-placeholder {
   background-color: var(--accent);
   color: #000;
   display: flex;
@@ -104,7 +108,7 @@ const router = useRouter()
   font-size: 0.9rem;
 }
 
-.topbar-username {
+.spj-topbar-username {
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--text-primary);
