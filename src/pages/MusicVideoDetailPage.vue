@@ -5,7 +5,7 @@ import { musicVideos } from '../data/musicVideos'
 import { songs } from '../data/songs'
 import { usePlayerStore } from '../stores/playerStore'
 import NavBar from '../components/NavBar.vue'
-import { Play, Pause, SkipBack, SkipForward, Maximize, Minimize, Music } from 'lucide-vue-next'
+import { Play, Pause, SkipBack, SkipForward, Maximize, Minimize, Music, Volume2, VolumeX } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,10 +14,42 @@ const player = usePlayerStore()
 const video = ref<HTMLVideoElement | null>(null)
 const videoReady = ref(false)
 
+// ── Volume Control State ──────────────────────────────────────
+const videoVolume = ref(1)
+const videoMuted = ref(false)
+const prevVideoVolume = ref(1)
+
+const setVideoVolume = (val: number) => {
+  videoVolume.value = val
+  videoMuted.value = val === 0
+  if (video.value) video.value.volume = val
+}
+
+const onVolumeInput = (e: Event) => {
+  const val = Number((e.target as HTMLInputElement).value)
+  setVideoVolume(val)
+}
+
+const toggleVideoMute = () => {
+  if (videoMuted.value) {
+    videoMuted.value = false
+    videoVolume.value = prevVideoVolume.value || 1
+    if (video.value) video.value.volume = videoVolume.value
+  } else {
+    prevVideoVolume.value = videoVolume.value
+    videoMuted.value = true
+    if (video.value) video.value.volume = 0
+    videoVolume.value = 0
+  }
+}
+
 const mvId = computed(() => Number(route.params.id))
 const currIdx = ref(musicVideos.findIndex(mv => mv.id === mvId.value))
 const currMV = computed(() => musicVideos[currIdx.value] || musicVideos[0])
 const currAssociatedSong = computed(() => songs.find(s => s.id === currMV.value.songId) || songs[0])
+
+// ── Bug Fix #3: track whether video is actively playing ───────
+const isVideoPlaying = ref(false)
 
 const isThisSongPlaying = computed(() => {
   return player.currentSong?.id === currAssociatedSong.value.id && player.isPlaying
@@ -25,6 +57,8 @@ const isThisSongPlaying = computed(() => {
 
 const tryPlay = () => {
   if (!video.value) return
+  // Un-mute video when we intentionally play it
+  video.value.volume = videoVolume.value
   video.value.play().catch(() => {
     // Autoplay blocked — user will click to start
   })
@@ -32,19 +66,41 @@ const tryPlay = () => {
 
 const onVideoCanPlay = () => {
   videoReady.value = true
-  if (isThisSongPlaying.value) {
-    tryPlay()
-  }
 }
-watch(() => isThisSongPlaying.value, (playing) => {
-  if (playing) {
-    if (videoReady.value) {
-      tryPlay()
+
+// ── Bug Fix #3: Pause bottom-player music when video plays ─────
+// When user hits play on the video, pause the BottomPlayer audio
+const playVideo = () => {
+  if (isVideoPlaying.value) {
+    // Pause the video
+    video.value?.pause()
+    isVideoPlaying.value = false
+    // Resume the bottom player if it was paused by us
+    if (!player.isPlaying && player.currentSong?.id === currAssociatedSong.value.id) {
+      player.togglePlay()
     }
   } else {
-    video.value?.pause()
+    // Pause bottom player first so audio doesn't overlap
+    if (player.isPlaying) {
+      player.togglePlay() // pause the music
+    }
+    // Start video playback
+    if (videoReady.value) {
+      tryPlay()
+      isVideoPlaying.value = true
+    } else {
+      if (player.currentSong?.id !== currAssociatedSong.value.id) {
+        player.playSong(currAssociatedSong.value, songs)
+        player.togglePlay() // immediately pause after loading
+      }
+    }
   }
-})
+}
+
+// Sync video pause/resume state
+const onVideoPause = () => { isVideoPlaying.value = false }
+const onVideoPlay  = () => { isVideoPlaying.value = true  }
+const onVideoEnded = () => { isVideoPlaying.value = false }
 
 // Auto-switch MV when the bottom player changes to a different song
 watch(() => player.currentSong, (newSong) => {
@@ -52,27 +108,19 @@ watch(() => player.currentSong, (newSong) => {
   const matchingMvIdx = musicVideos.findIndex(mv => mv.songId === newSong.id)
   if (matchingMvIdx !== -1 && matchingMvIdx !== currIdx.value) {
     currIdx.value = matchingMvIdx
-    // Update URL to stay in sync
     router.replace(`/music-video/${musicVideos[matchingMvIdx].id}`)
   }
 })
 
 watch(currMV, () => {
   videoReady.value = false
+  isVideoPlaying.value = false
   nextTick(() => {
     if (video.value) {
       video.value.load()
     }
   })
 })
-
-const playVideo = () => {
-  if (player.currentSong?.id === currAssociatedSong.value.id) {
-    player.togglePlay()
-  } else {
-    player.playSong(currAssociatedSong.value, songs)
-  }
-}
 
 const changeTrack = (index: number) => {
   currIdx.value = index
@@ -103,6 +151,11 @@ onUnmounted(() => {
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
   document.removeEventListener('MSFullscreenChange', onFullscreenChange)
+  // If we leave the page while video is playing, don't leave music paused
+  if (isVideoPlaying.value && !player.isPlaying && player.currentSong) {
+    // resume music if user navigates away
+    player.togglePlay()
+  }
 })
 
 const exitFullscreen = () => {
@@ -121,9 +174,9 @@ const goFullscreen = () => {
   
   if (elem.requestFullscreen) {
     elem.requestFullscreen().catch(err => console.error("Error attempting to enable fullscreen:", err))
-  } else if ((elem as any).webkitRequestFullscreen) { /* Safari */
+  } else if ((elem as any).webkitRequestFullscreen) {
     (elem as any).webkitRequestFullscreen()
-  } else if ((elem as any).msRequestFullscreen) { /* IE11 */
+  } else if ((elem as any).msRequestFullscreen) {
     (elem as any).msRequestFullscreen()
   }
 }
@@ -149,14 +202,16 @@ const goToSong = () => {
           :poster="currMV.cover"
           preload="auto"
           loop
-          muted
           playsinline
           @canplay="onVideoCanPlay"
           @click="playVideo"
+          @pause="onVideoPause"
+          @play="onVideoPlay"
+          @ended="onVideoEnded"
         ></video>
         
         <!-- Center Play Overlay -->
-        <div class="video-overlay" :class="{ hidden: isThisSongPlaying }" @click="playVideo">
+        <div class="video-overlay" :class="{ hidden: isVideoPlaying }" @click="playVideo">
           <button class="video-play-overlay" @click.stop="playVideo">
             <Play :size="64" fill="currentColor" stroke="currentColor" />
           </button>
@@ -167,7 +222,6 @@ const goToSong = () => {
           <Minimize :size="24" />
         </button>
       </div>
-
 
       
       <!-- Video Info -->
@@ -183,16 +237,35 @@ const goToSong = () => {
       
       <!-- Controls -->
       <div class="mvd-controls">
-        <div class="mvd-buttons" style="justify-content: center;">
+        <div class="mvd-buttons">
           <button class="ctrl-btn" @click="prevMV" title="Previous Video"><SkipBack :size="24" /></button>
           
           <button class="play-btn" @click="playVideo" style="width: 56px; height: 56px;">
-            <Pause v-if="isThisSongPlaying" :size="28" fill="currentColor" stroke="currentColor" />
+            <Pause v-if="isVideoPlaying" :size="28" fill="currentColor" stroke="currentColor" />
             <Play v-else :size="28" fill="currentColor" stroke="currentColor" style="margin-left: 2px;" />
           </button>
           
           <button class="ctrl-btn" @click="nextMV" title="Next Video"><SkipForward :size="24" /></button>
-          <button class="ctrl-btn" @click="goFullscreen" title="Fullscreen" style="position: absolute; right: 56px;"><Maximize :size="24" /></button>
+
+          <!-- ── Bug Fix #1: Volume Control ────────────────────── -->
+          <div class="video-volume">
+            <button class="ctrl-btn" @click="toggleVideoMute" title="Toggle Mute">
+              <VolumeX v-if="videoMuted || videoVolume === 0" :size="20" />
+              <Volume2 v-else :size="20" />
+            </button>
+            <input
+              type="range"
+              class="video-volume-slider"
+              min="0"
+              max="1"
+              step="0.01"
+              :value="videoVolume"
+              @input="onVolumeInput"
+              :style="{ '--progress': (videoVolume * 100) + '%' }"
+            />
+          </div>
+
+          <button class="ctrl-btn fullscreen-btn" @click="goFullscreen" title="Fullscreen"><Maximize :size="24" /></button>
         </div>
       </div>
     </div>
@@ -267,10 +340,6 @@ const goToSong = () => {
   background: var(--accent);
 }
 
-.video-play-overlay.hidden {
-  display: none;
-}
-
 .mvd-info {
   display: flex;
   align-items: flex-start;
@@ -319,7 +388,8 @@ const goToSong = () => {
 .mvd-buttons {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
+  justify-content: center;
   position: relative;
 }
 
@@ -357,6 +427,59 @@ const goToSong = () => {
 
 .play-btn:active {
   transform: scale(0.95);
+}
+
+/* ── Volume control styles ────────────────────────────────── */
+.video-volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+.video-volume-slider {
+  width: 90px;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--text-primary) 0%,
+    var(--text-primary) var(--progress, 100%),
+    var(--bg-highlight) var(--progress, 100%),
+    var(--bg-highlight) 100%
+  );
+  outline: none;
+  cursor: pointer;
+}
+
+.video-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.video-volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+  background: var(--accent);
+}
+
+.video-volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text-primary);
+  cursor: pointer;
+}
+
+.fullscreen-btn {
+  margin-left: auto;
 }
 
 .exit-fs-btn {

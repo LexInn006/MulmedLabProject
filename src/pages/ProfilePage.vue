@@ -24,7 +24,7 @@ const saveUsername = () => {
 }
 
 // Fungsi menangani upload foto profil
-// Mengambil file dari input, set loading, lalu simpan ke store
+// Mengambil file dari input, set loading minimal 3 detik, lalu simpan ke store
 const handleImageUpload = async (e: Event) => {
   const target = e.target as HTMLInputElement
   if (!target.files || target.files.length === 0) return
@@ -32,8 +32,14 @@ const handleImageUpload = async (e: Event) => {
   const file = target.files[0]
   isUploading.value = true
 
-  await store.setProfileImage(file)
+  // Jalankan proses upload dan timer 3 detik secara paralel,
+  // baru sembunyikan loading setelah keduanya selesai
+  const minDelay = new Promise<void>(resolve => setTimeout(resolve, 3000))
+  await Promise.all([store.setProfileImage(file), minDelay])
+
   isUploading.value = false
+  // Reset input agar file yang sama bisa diupload ulang
+  target.value = ''
 }
 </script>
 
@@ -50,8 +56,11 @@ const handleImageUpload = async (e: Event) => {
 
         <!-- Wrapper foto profil dengan tombol upload overlay -->
         <div class="profile-avatar-wrapper">
-          <!-- Spinner ditampilkan saat foto sedang diupload -->
-          <div v-if="isUploading" class="avatar-loading"><div class="spinner"></div></div>
+          <!-- Spinner ditampilkan saat foto sedang diupload (minimal 3 detik) -->
+          <div v-if="isUploading" class="avatar-loading">
+            <div class="spinner"></div>
+            <span class="upload-label">Uploading...</span>
+          </div>
 
           <!-- Tampilkan foto profil jika sudah ada -->
           <img v-else-if="store.profileImage" :src="store.profileImage" class="profile-avatar" />
@@ -440,8 +449,17 @@ const handleImageUpload = async (e: Event) => {
   border-radius: 50%;
   background: var(--bg-surface);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
+}
+
+.upload-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
 }
 
 .spinner {
