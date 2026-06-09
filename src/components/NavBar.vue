@@ -8,7 +8,7 @@ const router = useRouter()
 </script>
 
 <template>
-  <!-- Bootstrap Navbar Component (1/2) — aktif dipakai -->
+  <!-- Bootstrap Navbar Component -->
   <nav class="navbar spj-topbar">
     <!-- Kiri: tombol navigasi back/forward -->
     <div class="spj-topbar-left">

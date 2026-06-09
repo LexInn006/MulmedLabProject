@@ -50,7 +50,7 @@ const onVolume = (e: Event) => {
       </div>
       <div class="player-progress">
         <span class="player-time">{{ player.formattedCurrentTime }}</span>
-        <input type="range" class="progress-slider" min="0" :max="player.duration" step="0.1" :value="player.currentTime" @mousedown="player.isDragging = true" @change="onSeek" @input="player.currentTime = Number($event.target.value)" :style="{ '--progress': (player.duration ? (player.currentTime / player.duration) * 100 : 0) + '%' }" />
+        <input type="range" class="progress-slider" min="0" :max="player.duration" step="0.1" :value="player.currentTime" @mousedown="player.isDragging = true" @change="onSeek" @input="player.currentTime = Number(($event.target as HTMLInputElement).value)" :style="{ '--progress': (player.duration ? (player.currentTime / player.duration) * 100 : 0) + '%' }" />
         <span class="player-time">{{ player.formattedDuration }}</span>
       </div>
     </div>

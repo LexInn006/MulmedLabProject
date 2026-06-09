@@ -5,13 +5,17 @@ import { usePlayerStore } from '../stores/playerStore'
 import NavBar from '../components/NavBar.vue'
 import { Sun, Moon, Upload, Check, Camera } from 'lucide-vue-next'
 
+// Inisialisasi store
 const store = useProfileStore()
 const player = usePlayerStore()
 
+// State lokal untuk input username, status upload foto, dan pesan "Saved"
 const newUsername = ref(store.username)
 const isUploading = ref(false)
 const savedMsg = ref(false)
 
+// Fungsi menyimpan username baru ke store
+// Tidak menyimpan jika input kosong, lalu tampilkan pesan "Saved" selama 2 detik
 const saveUsername = () => {
   if (!newUsername.value.trim()) return
   store.setUsername(newUsername.value.trim())
@@ -19,6 +23,8 @@ const saveUsername = () => {
   setTimeout(() => { savedMsg.value = false }, 2000)
 }
 
+// Fungsi menangani upload foto profil
+// Mengambil file dari input, set loading, lalu simpan ke store
 const handleImageUpload = async (e: Event) => {
   const target = e.target as HTMLInputElement
   if (!target.files || target.files.length === 0) return
@@ -33,21 +39,37 @@ const handleImageUpload = async (e: Event) => {
 
 <template>
   <div class="profile-page">
+
+    <!-- ===== HEADER PROFIL ===== -->
     <div class="profile-header">
+      <!-- Komponen navigasi atas -->
       <NavBar />
+
+      <!-- Hero section: menampilkan foto dan info profil -->
       <div class="profile-hero">
+
+        <!-- Wrapper foto profil dengan tombol upload overlay -->
         <div class="profile-avatar-wrapper">
+          <!-- Spinner ditampilkan saat foto sedang diupload -->
           <div v-if="isUploading" class="avatar-loading"><div class="spinner"></div></div>
+
+          <!-- Tampilkan foto profil jika sudah ada -->
           <img v-else-if="store.profileImage" :src="store.profileImage" class="profile-avatar" />
+
+          <!-- Placeholder inisial huruf pertama username jika belum ada foto -->
           <div v-else class="profile-avatar avatar-placeholder">{{ store.username.charAt(0).toUpperCase() }}</div>
           
+          <!-- Overlay kamera yang muncul saat hover, memicu input file -->
           <label class="avatar-upload-overlay" for="imageInput">
             <Camera :size="32" />
             <span>Choose Photo</span>
           </label>
+
+          <!-- Input file tersembunyi untuk upload foto dari avatar -->
           <input id="imageInput" type="file" accept="image/*" class="hidden-input" @change="handleImageUpload" />
         </div>
         
+        <!-- Info teks profil: label, nama, dan jumlah liked songs -->
         <div class="profile-info">
           <span class="profile-label">Profile</span>
           <h1 class="profile-name">{{ store.username }}</h1>
@@ -56,54 +78,70 @@ const handleImageUpload = async (e: Event) => {
       </div>
     </div>
     
+    <!-- ===== KONTEN PENGATURAN ===== -->
     <div class="profile-content">
       <div class="settings-grid">
-        <!-- Account Settings -->
+
+        <!-- KARTU: Pengaturan Akun -->
         <div class="settings-card">
           <h3>Account Settings</h3>
           
+          <!-- Form ganti username -->
           <div class="form-group">
             <label>Username</label>
             <div class="input-row">
+              <!-- Input teks terikat ke newUsername -->
               <input v-model="newUsername" type="text" class="text-input" placeholder="Enter username" />
+
+              <!-- Tombol save: ikon centang + teks berubah saat berhasil disimpan -->
               <button class="save-btn" @click="saveUsername">
                 <Check v-if="savedMsg" :size="16" /> {{ savedMsg ? 'Saved' : 'Save' }}
               </button>
             </div>
           </div>
           
+          <!-- Form upload foto profil (alternatif selain klik avatar) -->
           <div class="form-group">
             <label>Profile Photo</label>
             <div class="input-row">
               <label class="upload-btn" for="imageInput2">
                 <Upload :size="16" /> Upload
               </label>
+
+              <!-- Input file tersembunyi untuk upload foto dari tombol Upload -->
               <input id="imageInput2" type="file" accept="image/*" class="hidden-input" @change="handleImageUpload" />
               <p class="upload-note">Max 1 MB · JPEG/PNG</p>
             </div>
           </div>
         </div>
         
-        <!-- Appearance Settings -->
+        <!-- Pengaturan Tampilan (Dark/Light Mode) -->
         <div class="settings-card">
           <h3>Appearance</h3>
           <p class="settings-desc">Choose how SpoJeDy looks to you.</p>
           
+          <!-- Baris toggle tema: ikon + label + toggle switch -->
           <div class="theme-toggle-row">
             <div class="theme-info">
+              <!-- Ikon Sun untuk light mode, Moon untuk dark mode -->
               <Sun v-if="!store.isDarkMode" :size="24" class="theme-icon" />
               <Moon v-else :size="24" class="theme-icon" />
+
               <div>
+                <!-- Label teks mode berubah sesuai kondisi isDarkMode -->
                 <strong>{{ store.isDarkMode ? 'Dark Mode' : 'Light Mode' }}</strong>
                 <p>Enjoy a visually comfortable experience.</p>
               </div>
             </div>
             
+            <!-- Toggle switch: kelas "active" ditambahkan saat dark mode aktif -->
+            <!-- Klik memanggil toggleDarkMode() di store -->
             <div class="toggle-switch" :class="{ active: store.isDarkMode }" @click="store.toggleDarkMode()">
               <div class="toggle-thumb"></div>
             </div>
           </div>
         </div>
+
       </div>
     </div>
   </div>
@@ -333,7 +371,6 @@ const handleImageUpload = async (e: Event) => {
   margin: 0;
 }
 
-/* Theme Toggle */
 .theme-toggle-row {
   display: flex;
   align-items: center;
@@ -395,7 +432,8 @@ const handleImageUpload = async (e: Event) => {
   left: 27px;
 }
 
-/* Loading Spinner */
+/* ===== LOADING SPINNER ===== */
+
 .avatar-loading {
   position: absolute;
   inset: 0;

@@ -14,6 +14,8 @@ const profile = useProfileStore()
 
 const searchQuery = ref('')
 
+// Mengubah format data 'musicVideos' menjadi mirip format 'SongData'
+// Ini dilakukan agar komponen 'SongCard' (yang awalnya dibuat untuk lagu) bisa menampilkan data video ini
 const mvAsSongs = computed(() => {
   return musicVideos.map(mv => ({
     id: mv.id,
@@ -26,6 +28,7 @@ const mvAsSongs = computed(() => {
   } as unknown as SongData))
 })
 
+// Fitur pencarian/filter otomatis
 const filteredMVs = computed(() => {
   if (!searchQuery.value) return mvAsSongs.value
   const query = searchQuery.value.toLowerCase()
@@ -35,6 +38,7 @@ const filteredMVs = computed(() => {
   )
 })
 
+// Fungsi untuk pindah ke halaman detail video musik saat sebuah video diklik
 const goToMVDetail = (payload: any) => {
   const id = typeof payload === 'number' ? payload : payload.id;
   router.push(`/music-video/${id}`)
