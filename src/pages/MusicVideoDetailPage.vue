@@ -112,6 +112,14 @@ watch(() => player.currentSong, (newSong) => {
   }
 })
 
+// Bug Fix #3 (Sebaliknya): Pause video when bottom-player music plays
+watch(() => player.isPlaying, (isPlaying) => {
+  if (isPlaying && isVideoPlaying.value) {
+    video.value?.pause()
+    isVideoPlaying.value = false
+  }
+})
+
 watch(currMV, () => {
   videoReady.value = false
   isVideoPlaying.value = false
