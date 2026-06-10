@@ -8,7 +8,7 @@ import type { SongData } from '../data/songs'
 import NavBar from '../components/NavBar.vue'
 import SearchBar from '../components/SearchBar.vue'
 import SongCard from '../components/SongCard.vue'
-import { Play, TrendingUp, Headphones } from 'lucide-vue-next'
+import { Play, Pause, TrendingUp, Headphones } from 'lucide-vue-next'
 
 const router = useRouter()
 const profile = useProfileStore()
@@ -31,7 +31,14 @@ const filteredSongs = computed(() => {
 
 const trendingSongs = computed(() => songs.slice(0, 6))
 
-const handlePlay = (song: SongData) => player.playSong(song, songs)
+const isSongPlaying = (song: SongData) => player.currentSong?.id === song.id && player.isPlaying
+const handlePlay = (song: SongData) => {
+  if (isSongPlaying(song)) {
+    player.togglePlay()
+  } else {
+    player.playSong(song, songs)
+  }
+}
 const goToSongDetail = (id: number) => router.push(`/song/${id}`)
 </script>
 
@@ -72,8 +79,9 @@ const goToSongDetail = (id: number) => router.push(`/song/${id}`)
               <span class="quick-name">{{ song.title }}</span>
               <span class="quick-artist">{{ song.artist }}</span>
             </div>
-            <button class="quick-play">
-              <Play :size="14" fill="currentColor" stroke="currentColor" style="margin-left:1px" />
+            <button class="quick-play" :class="{ 'is-active': isSongPlaying(song) }" @click.stop="handlePlay(song)">
+              <Pause v-if="isSongPlaying(song)" :size="14" fill="currentColor" stroke="currentColor" />
+              <Play v-else :size="14" fill="currentColor" stroke="currentColor" style="margin-left:1px" />
             </button>
           </div>
         </div>
@@ -200,6 +208,10 @@ const goToSongDetail = (id: number) => router.push(`/song/${id}`)
   opacity: 0; transform: scale(0.8);
   transition: all var(--transition);
   box-shadow: 0 4px 12px rgba(0,210,200,0.4);
+}
+.quick-play.is-active {
+  opacity: 1;
+  transform: scale(1);
 }
 
 /* Song grid */
