@@ -122,7 +122,10 @@ const addToPlaylist = (pid: number) => {
 </template>
 
 <style scoped>
-.detail-page { position: relative; min-height: 100vh; overflow: hidden; }
+.detail-page {
+  position: relative; min-height: 100vh; overflow: hidden;
+  background: var(--bg-base);
+}
 
 .detail-bg {
   position: fixed; inset: 0;
@@ -133,10 +136,10 @@ const addToPlaylist = (pid: number) => {
 }
 .detail-overlay {
   position: fixed; inset: 0;
-  background: linear-gradient(180deg, rgba(13,17,23,0.55) 0%, rgba(13,17,23,0.9) 100%);
+  background: linear-gradient(180deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.9) 100%);
   z-index: 1; pointer-events: none;
 }
-.detail-content { position: relative; z-index: 2; min-height: 100vh; display: flex; flex-direction: column; }
+.detail-content { position: relative; z-index: 2; min-height: 100vh; display: flex; flex-direction: column; background: linear-gradient(180deg, transparent 0%, var(--bg-base) 100%); }
 
 .detail-main {
   flex: 1; display: flex; align-items: center; justify-content: center;
@@ -194,21 +197,22 @@ const addToPlaylist = (pid: number) => {
 
 .like-btn {
   width: 48px; height: 48px; border-radius: 50%;
-  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+  background: var(--bg-surface); border: 1px solid var(--sidebar-border);
   cursor: pointer; transition: all var(--transition);
   display: flex; align-items: center; justify-content: center; color: var(--text-secondary);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
 }
 .like-btn:hover { border-color: var(--accent); background: var(--accent-glow); }
 .like-btn.liked { border-color: var(--accent); background: var(--accent-glow); color: var(--accent); }
 
 .action-pill {
   display: flex; align-items: center; gap: 8px;
-  background: rgba(255,255,255,0.07); color: var(--text-primary);
-  border: 1px solid rgba(255,255,255,0.12); border-radius: var(--radius-full);
+  background: var(--bg-surface); color: var(--text-primary);
+  border: 1px solid var(--sidebar-border); border-radius: var(--radius-full);
   padding: 10px 20px; font-size: 0.88rem; font-weight: 600;
   cursor: pointer; transition: all var(--transition); font-family: var(--font-family);
 }
-.action-pill:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
+.action-pill:hover { background: var(--bg-elevated); border-color: var(--text-subdued); }
 .mv-pill { border-color: rgba(124,106,255,0.3); }
 .mv-pill:hover { background: rgba(124,106,255,0.12); border-color: var(--accent2); color: #a78bfa; }
 
@@ -217,8 +221,8 @@ const addToPlaylist = (pid: number) => {
 .pl-dropdown {
   position: absolute; top: calc(100% + 8px); left: 0;
   width: 260px; max-height: 280px; overflow-y: auto;
-  background: var(--bg-elevated); border: 1px solid rgba(255,255,255,0.08);
-  border-radius: var(--radius-md); box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  background: var(--bg-surface); border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-md); box-shadow: 0 16px 48px rgba(15, 23, 42, 0.12);
   z-index: 9999; padding: 8px 0;
   animation: dropDown 0.18s cubic-bezier(0.4,0,0.2,1);
 }
@@ -229,7 +233,7 @@ const addToPlaylist = (pid: number) => {
 .pl-empty p { margin: 0; font-size: 0.88rem; color: var(--text-secondary); font-weight: 600; }
 .pl-empty small { font-size: 0.75rem; }
 .pl-item { display: flex; align-items: center; gap: 10px; padding: 8px 16px; cursor: pointer; transition: background var(--transition); }
-.pl-item:hover { background: var(--bg-highlight); }
+.pl-item:hover { background: var(--bg-elevated); }
 .pl-item.done { opacity: 0.45; cursor: default; }
 .pl-item.done:hover { background: transparent; }
 .pl-item-cover { width: 34px; height: 34px; border-radius: 6px; background: var(--bg-surface); display: flex; align-items: center; justify-content: center; color: var(--text-subdued); overflow: hidden; flex-shrink: 0; }
