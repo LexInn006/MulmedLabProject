@@ -82,9 +82,9 @@ const onVolume = (e: Event) => {
 <style scoped>
 .player-bar {
   height: var(--player-height);
-  background: rgba(13, 17, 23, 0.9);
+  background: var(--player-bar-bg);
   backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(255,255,255,0.06);
+  border-top: 1px solid var(--player-bar-border);
   position: fixed; bottom: 0; left: 0; right: 0;
   display: flex; align-items: center;
   padding: 0 20px; z-index: 1000;
@@ -116,7 +116,7 @@ const onVolume = (e: Event) => {
 
 .cover-overlay {
   position: absolute; inset: 0; border-radius: 10px;
-  background: rgba(0,0,0,0.45);
+  background: var(--player-cover-overlay);
   display: flex; align-items: center; justify-content: center;
   opacity: 0; transition: opacity var(--transition);
 }
@@ -151,7 +151,7 @@ const onVolume = (e: Event) => {
   display: flex; align-items: center; justify-content: center;
   transition: all var(--transition); padding: 4px; border-radius: 6px;
 }
-.ctrl-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.06); }
+.ctrl-btn:hover { color: var(--text-primary); background: var(--player-control-hover); }
 
 .play-btn {
   width: 36px; height: 36px; border-radius: 50%;
