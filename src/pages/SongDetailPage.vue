@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePlayerStore } from '../stores/playerStore'
 import { useProfileStore } from '../stores/profileStore'
@@ -7,7 +7,6 @@ import { usePlaylistStore } from '../stores/playlistStore'
 import { songs } from '../data/songs'
 import NavBar from '../components/NavBar.vue'
 import { Play, Pause, Heart, MonitorPlay, ListPlus, Check, ListMusic } from 'lucide-vue-next'
-import { onMounted, onUnmounted } from 'vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,558 +14,234 @@ const player = usePlayerStore()
 const profileStore = useProfileStore()
 const playlistStore = usePlaylistStore()
 
-// Ambil ID lagu dari URL dan cari datanya
 const songId = computed(() => Number(route.params.id))
 const currSong = computed(() => songs.find(s => s.id === songId.value) || songs[0])
+const isCurrentPlaying = computed(() =>
+  player.currentSong?.id === currSong.value.id && player.isPlaying)
 
-// Cek apakah lagu ini sedang diputar
-const isCurrentPlaying = computed(() => {
-  return player.currentSong?.id === currSong.value.id && player.isPlaying
-})
-
-// Toggle play/pause lagu ini
 const handlePlay = () => {
-  if (player.currentSong?.id === currSong.value.id) {
-    player.togglePlay()
-  } else {
-    player.playSong(currSong.value, songs)
-  }
+  if (player.currentSong?.id === currSong.value.id) player.togglePlay()
+  else player.playSong(currSong.value, songs)
 }
+const goToMV = () => { if (currSong.value.mv) router.push(`/music-video/${currSong.value.mv}`) }
 
-// Pergi ke halaman Music Video lagu ini
-const goToMV = () => {
-  if (currSong.value.mv) {
-    router.push(`/music-video/${currSong.value.mv}`)
-  }
-}
-
-// State buka/tutup dropdown playlist (dibuat sendiri, bukan Bootstrap)
 const showDropdown = ref(false)
-
-// Pesan sukses sementara setelah tambah lagu
 const successMsg = ref('')
-
-// Toggle dropdown
-const toggleDropdown = () => {
-  showDropdown.value = !showDropdown.value
-}
-
-// Tutup dropdown kalau klik di luar area dropdown
+const toggleDropdown = () => { showDropdown.value = !showDropdown.value }
 const handleClickOutside = (e: MouseEvent) => {
-  const wrapper = document.querySelector('.playlist-wrapper')
-  if (wrapper && !wrapper.contains(e.target as Node)) {
-    showDropdown.value = false
-  }
+  const w = document.querySelector('.pl-wrapper')
+  if (w && !w.contains(e.target as Node)) showDropdown.value = false
 }
+onMounted(() => document.addEventListener('click', handleClickOutside))
+onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 
-// Pasang event listener saat halaman dibuka
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-})
+const isSongInPlaylist = (pid: number) =>
+  playlistStore.playlists.find(p => p.id === pid)?.songs.some(s => s.id === currSong.value.id) ?? false
 
-// Lepas event listener saat halaman ditutup agar tidak memory leak
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-})
-
-// Cek apakah lagu sudah ada di playlist tertentu
-const isSongInPlaylist = (playlistId: number) => {
-  const playlist = playlistStore.playlists.find(p => p.id === playlistId)
-  if (!playlist) return false
-  return playlist.songs.some(s => s.id === currSong.value.id)
-}
-
-// Tambah lagu ke playlist yang dipilih
-const addToPlaylist = (playlistId: number) => {
-  if (isSongInPlaylist(playlistId)) return
-  playlistStore.addSongToPlaylist(playlistId, currSong.value)
-
-  // Tampilkan pesan sukses selama 2 detik lalu tutup dropdown
-  successMsg.value = 'Added to playlist!'
-  setTimeout(() => {
-    successMsg.value = ''
-    showDropdown.value = false
-  }, 1500)
+const addToPlaylist = (pid: number) => {
+  if (isSongInPlaylist(pid)) return
+  playlistStore.addSongToPlaylist(pid, currSong.value)
+  successMsg.value = 'Added!'
+  setTimeout(() => { successMsg.value = ''; showDropdown.value = false }, 1500)
 }
 </script>
 
 <template>
-  <div class="song-detail-page" :class="{ 'is-light': !profileStore.isDarkMode }">
+  <div class="detail-page page-enter">
+    <!-- Blurred background -->
+    <div class="detail-bg" :style="{ backgroundImage: `url(${currSong.cover})` }"></div>
+    <div class="detail-overlay"></div>
 
-    <!-- Background blur dari cover lagu -->
-    <div class="bg-blur" :style="{ backgroundImage: `url(${currSong.cover})` }"></div>
-    <div class="bg-overlay"></div>
-
-
-    <div class="content-wrapper">
-
-      <!-- Navbar Bootstrap (1/2) -->
-      <div class="nav-container">
-        <NavBar />
-      </div>
+    <div class="detail-content">
+      <NavBar />
 
       <div class="detail-main">
-
-        <!-- Cover lagu -->
-        <div class="cover-container">
-          <img :src="currSong.cover" class="main-cover" />
+        <!-- Cover -->
+        <div class="cover-area">
+          <div class="cover-shadow"></div>
+          <img :src="currSong.cover" class="main-cover"
+            :class="{ 'is-spinning': isCurrentPlaying }" />
         </div>
 
-        <!-- Info + tombol aksi -->
-        <div class="info-container">
-          <span class="type-label">Single</span>
+        <!-- Info -->
+        <div class="info-area">
+          <span class="type-badge">Single</span>
           <h1 class="song-title">{{ currSong.title }}</h1>
-          <p class="song-artist">{{ currSong.artist }} • {{ currSong.duration }}</p>
+          <p class="song-meta">{{ currSong.artist }} · {{ currSong.duration }}</p>
 
-          <div class="action-buttons">
-
-            <!-- Tombol Play/Pause -->
+          <div class="actions">
             <button class="play-btn" @click="handlePlay">
-              <Pause v-if="isCurrentPlaying" :size="32" fill="currentColor" stroke="currentColor" />
-              <Play v-else :size="32" fill="currentColor" stroke="currentColor" style="margin-left: 4px;" />
+              <Pause v-if="isCurrentPlaying" :size="28" fill="currentColor" stroke="currentColor" />
+              <Play v-else :size="28" fill="currentColor" stroke="currentColor" style="margin-left:3px" />
             </button>
 
-            <!-- Tombol Like -->
-            <button class="like-btn" @click="player.toggleLike(currSong.id)">
-              <Heart
-                :size="40"
-                :fill="player.isLiked(currSong.id) ? '#8b5cf6' : 'none'"
-                :stroke="player.isLiked(currSong.id) ? '#8b5cf6' : (profileStore.isDarkMode ? '#ffffff' : '#000000')"
-              />
+            <button class="like-btn" @click="player.toggleLike(currSong.id)"
+              :class="{ liked: player.isLiked(currSong.id) }">
+              <Heart :size="22"
+                :fill="player.isLiked(currSong.id) ? 'var(--accent)' : 'none'"
+                :stroke="player.isLiked(currSong.id) ? 'var(--accent)' : 'currentColor'" />
             </button>
 
-            <!-- Tombol Watch Music Video -->
-            <button v-if="currSong.mv" class="mv-btn" @click="goToMV">
-              <MonitorPlay :size="20" /> Watch Music Video
+            <button v-if="currSong.mv" class="action-pill mv-pill" @click="goToMV">
+              <MonitorPlay :size="16" /> Watch MV
             </button>
 
-            <!-- Tombol Add to Playlist + Dropdown Vue murni (bukan Bootstrap) -->
-            <div class="playlist-wrapper">
-              <button class="add-playlist-btn" @click="toggleDropdown">
-                <ListPlus :size="20" />
-                Add to Playlist
+            <div class="pl-wrapper">
+              <button class="action-pill" @click="toggleDropdown">
+                <ListPlus :size="16" /> Add to Playlist
               </button>
-
-              <!-- Dropdown dibuat dari CSS biasa, bukan Bootstrap -->
-              <div v-if="showDropdown" class="spj-dropdown" @click.stop>
-
-                <!-- Pesan sukses setelah tambah lagu -->
-                <div v-if="successMsg" class="spj-success-msg">
-                  <Check :size="16" />
-                  {{ successMsg }}
-                </div>
-
-                <!-- Kalau belum ada playlist -->
-                <div v-else-if="playlistStore.playlists.length === 0" class="spj-dropdown-empty">
-                  <ListMusic :size="24" />
+              <div v-if="showDropdown" class="pl-dropdown" @click.stop>
+                <div v-if="successMsg" class="pl-success"><Check :size="15" /> {{ successMsg }}</div>
+                <div v-else-if="playlistStore.playlists.length === 0" class="pl-empty">
+                  <ListMusic :size="20" />
                   <p>No playlists yet</p>
-                  <small>Create one from the sidebar first</small>
+                  <small>Create one from the sidebar</small>
                 </div>
-
-                <!-- Daftar playlist -->
                 <template v-else>
-                  <p class="spj-dropdown-title">Add to Playlist</p>
-                  <div
-                    v-for="playlist in playlistStore.playlists"
-                    :key="playlist.id"
-                    class="spj-dropdown-item"
-                    :class="{ 'spj-already-added': isSongInPlaylist(playlist.id) }"
-                    @click="addToPlaylist(playlist.id)"
-                  >
-                    <!-- Cover playlist kecil -->
-                    <div class="spj-item-cover">
-                      <img v-if="playlist.cover" :src="playlist.cover" alt="cover" />
-                      <ListMusic v-else :size="16" />
+                  <p class="pl-label">Add to Playlist</p>
+                  <div v-for="pl in playlistStore.playlists" :key="pl.id"
+                    class="pl-item" :class="{ done: isSongInPlaylist(pl.id) }"
+                    @click="addToPlaylist(pl.id)">
+                    <div class="pl-item-cover">
+                      <img v-if="pl.cover" :src="pl.cover" /><ListMusic v-else :size="14" />
                     </div>
-
-                    <!-- Nama + jumlah lagu -->
-                    <div class="spj-item-info">
-                      <span class="spj-item-name">{{ playlist.name }}</span>
-                      <span class="spj-item-count">{{ playlist.songs.length }} songs</span>
+                    <div class="pl-item-info">
+                      <span class="pl-item-name">{{ pl.name }}</span>
+                      <span class="pl-item-count">{{ pl.songs.length }} songs</span>
                     </div>
-
-                    <!-- Centang kalau sudah ditambahkan -->
-                    <Check v-if="isSongInPlaylist(playlist.id)" :size="16" class="spj-check" />
+                    <Check v-if="isSongInPlaylist(pl.id)" :size="14" class="pl-check" />
                   </div>
                 </template>
-
               </div>
             </div>
-
           </div>
         </div>
-
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.song-detail-page {
-  position: relative;
-  min-height: 100vh;
-  color: #ffffff;
-}
+.detail-page { position: relative; min-height: 100vh; overflow: hidden; }
 
-.song-detail-page.is-light {
-  color: #111111;
+.detail-bg {
+  position: fixed; inset: 0;
+  background-size: cover; background-position: center;
+  filter: blur(80px) saturate(1.4); opacity: 0.25;
+  z-index: 0; pointer-events: none; transform: scale(1.2);
+  transition: background-image 0.6s ease;
 }
-
-.bg-blur {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-size: cover;
-  background-position: center;
-  filter: blur(100px);
-  z-index: 0;
-  opacity: 0.5;
-  pointer-events: none;
-  transition: background-image 0.5s ease;
+.detail-overlay {
+  position: fixed; inset: 0;
+  background: linear-gradient(180deg, rgba(13,17,23,0.55) 0%, rgba(13,17,23,0.9) 100%);
+  z-index: 1; pointer-events: none;
 }
-
-.is-light .bg-blur {
-  opacity: 0.2;
-}
-
-.bg-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 100%);
-  z-index: 1;
-  pointer-events: none;
-}
-
-.is-light .bg-overlay {
-  background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, var(--bg-base) 100%);
-}
-
-
-.content-wrapper {
-  position: relative;
-  z-index: 2;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.nav-container {
-  padding: 0 32px;
-}
+.detail-content { position: relative; z-index: 2; min-height: 100vh; display: flex; flex-direction: column; }
 
 .detail-main {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 64px;
-  padding: 48px;
-  max-width: 1200px;
-  margin: 0 auto;
-  width: 100%;
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  gap: 72px; padding: 32px 48px 80px;
+  max-width: 1100px; margin: 0 auto; width: 100%;
 }
 
-@media (max-width: 768px) {
-  .detail-main {
-    flex-direction: column;
-    text-align: center;
-    gap: 32px;
-  }
+.cover-area { flex-shrink: 0; position: relative; }
+.cover-shadow {
+  position: absolute; inset: 20px; border-radius: 20px;
+  background: var(--accent); filter: blur(40px); opacity: 0.15;
+  animation: shadowPulse 3s ease-in-out infinite;
 }
-
-.cover-container {
-  flex-shrink: 0;
-}
+@keyframes shadowPulse { 0%,100%{opacity:0.15} 50%{opacity:0.28} }
 
 .main-cover {
-  width: 400px;
-  height: 400px;
-  border-radius: 16px;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
-  object-fit: cover;
-  transition: transform 0.3s ease;
+  width: 340px; height: 340px; border-radius: 20px; object-fit: cover;
+  position: relative; box-shadow: 0 32px 72px rgba(0,0,0,0.7);
+  transition: transform 0.5s ease;
 }
-
-.is-light .main-cover {
-  box-shadow: 0 24px 64px rgba(0,0,0,0.2);
+.main-cover:hover { transform: scale(1.02) rotate(0.5deg); }
+.main-cover.is-spinning {
+  animation: subtleBob 3s ease-in-out infinite;
 }
+@keyframes subtleBob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
 
-.main-cover:hover {
-  transform: scale(1.02);
+.info-area { display: flex; flex-direction: column; }
+
+.type-badge {
+  display: inline-block; font-size: 0.7rem; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--accent); background: var(--accent-glow);
+  padding: 4px 10px; border-radius: var(--radius-full);
+  border: 1px solid rgba(0,210,200,0.25); margin-bottom: 16px;
+  width: fit-content;
 }
-
-@media (max-width: 768px) {
-  .main-cover {
-    width: 300px;
-    height: 300px;
-  }
-}
-
-.info-container {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-@media (max-width: 768px) {
-  .info-container {
-    align-items: center;
-  }
-}
-
-.type-label {
-  font-size: 0.9rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  margin-bottom: 12px;
-  color: var(--text-secondary);
-}
-
 .song-title {
-  font-size: clamp(3rem, 6vw, 5rem);
-  font-weight: 900;
-  margin: 0 0 16px 0;
-  line-height: 1.1;
-  letter-spacing: -1px;
+  font-size: clamp(2.5rem, 5vw, 4.2rem); font-weight: 900;
+  margin: 0 0 12px; letter-spacing: -1.5px; line-height: 1.05;
 }
+.song-meta { font-size: 1.1rem; color: var(--text-secondary); margin: 0 0 36px; font-weight: 500; }
 
-.song-artist {
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin: 0 0 40px 0;
-}
-
-.action-buttons {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  flex-wrap: wrap;
-}
+.actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 
 .play-btn {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background-color: var(--text-primary);
-  color: var(--bg-base);
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: transform 0.2s, background-color 0.2s;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  width: 64px; height: 64px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #000; border: none;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all var(--transition);
+  box-shadow: 0 8px 24px rgba(0,210,200,0.4);
 }
-
-.play-btn:hover {
-  transform: scale(1.05);
-}
-
-.play-btn:active {
-  transform: scale(0.95);
-}
+.play-btn:hover { transform: scale(1.08); box-shadow: 0 12px 32px rgba(0,210,200,0.55); }
+.play-btn:active { transform: scale(0.95); }
 
 .like-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  transition: transform 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
+  width: 48px; height: 48px; border-radius: 50%;
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+  cursor: pointer; transition: all var(--transition);
+  display: flex; align-items: center; justify-content: center; color: var(--text-secondary);
 }
+.like-btn:hover { border-color: var(--accent); background: var(--accent-glow); }
+.like-btn.liked { border-color: var(--accent); background: var(--accent-glow); color: var(--accent); }
 
-.like-btn:hover {
-  transform: scale(1.1);
+.action-pill {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.07); color: var(--text-primary);
+  border: 1px solid rgba(255,255,255,0.12); border-radius: var(--radius-full);
+  padding: 10px 20px; font-size: 0.88rem; font-weight: 600;
+  cursor: pointer; transition: all var(--transition); font-family: var(--font-family);
 }
+.action-pill:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
+.mv-pill { border-color: rgba(124,106,255,0.3); }
+.mv-pill:hover { background: rgba(124,106,255,0.12); border-color: var(--accent2); color: #a78bfa; }
 
-.mv-btn {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background-color: rgba(255, 255, 255, 0.1);
-  color: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 32px;
-  padding: 12px 24px;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s;
-  backdrop-filter: blur(8px);
+/* Dropdown */
+.pl-wrapper { position: relative; z-index: 9999; }
+.pl-dropdown {
+  position: absolute; top: calc(100% + 8px); left: 0;
+  width: 260px; max-height: 280px; overflow-y: auto;
+  background: var(--bg-elevated); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-md); box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  z-index: 9999; padding: 8px 0;
+  animation: dropDown 0.18s cubic-bezier(0.4,0,0.2,1);
 }
+@keyframes dropDown { from { opacity:0; transform:translateY(-8px) } to { opacity:1; transform:none } }
+.pl-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-subdued); padding: 6px 16px; margin: 0; }
+.pl-success { display: flex; align-items: center; gap: 8px; padding: 18px 16px; color: var(--accent); font-weight: 600; font-size: 0.88rem; }
+.pl-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 16px; text-align: center; color: var(--text-subdued); }
+.pl-empty p { margin: 0; font-size: 0.88rem; color: var(--text-secondary); font-weight: 600; }
+.pl-empty small { font-size: 0.75rem; }
+.pl-item { display: flex; align-items: center; gap: 10px; padding: 8px 16px; cursor: pointer; transition: background var(--transition); }
+.pl-item:hover { background: var(--bg-highlight); }
+.pl-item.done { opacity: 0.45; cursor: default; }
+.pl-item.done:hover { background: transparent; }
+.pl-item-cover { width: 34px; height: 34px; border-radius: 6px; background: var(--bg-surface); display: flex; align-items: center; justify-content: center; color: var(--text-subdued); overflow: hidden; flex-shrink: 0; }
+.pl-item-cover img { width: 100%; height: 100%; object-fit: cover; }
+.pl-item-info { flex: 1; min-width: 0; }
+.pl-item-name { display: block; font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-item-count { font-size: 0.72rem; color: var(--text-subdued); }
+.pl-check { color: var(--accent); flex-shrink: 0; }
 
-.is-light .mv-btn {
-  background-color: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.1);
-}
-
-.mv-btn:hover {
-  background-color: var(--text-primary);
-  color: var(--bg-base);
-  transform: scale(1.02);
-}
-
-.add-playlist-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: none;
-  color: var(--text-secondary);
-  border: none;
-  padding: 8px 4px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.add-playlist-btn:hover {
-  color: var(--text-primary);
-  transform: scale(1.05);
-}
-
-/* Wrapper untuk posisi dropdown */
-.playlist-wrapper {
-  position: relative;
-  z-index: 9999;
-}
-
-/* Dropdown murni Vue + CSS, bukan Bootstrap */
-.spj-dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  width: 260px;
-  max-height: 300px;
-  overflow-y: auto;
-  background-color: var(--bg-elevated);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-  z-index: 9999;
-  padding: 8px 0;
-}
-
-.spj-dropdown-title {
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--text-subdued);
-  padding: 8px 16px 4px;
-  margin: 0;
-}
-
-/* Pesan sukses setelah tambah lagu */
-.spj-success-msg {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 20px 16px;
-  color: var(--accent);
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-/* Empty state kalau belum ada playlist */
-.spj-dropdown-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 24px 16px;
-  text-align: center;
-  color: var(--text-subdued);
-}
-
-.spj-dropdown-empty p {
-  margin: 0;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.spj-dropdown-empty small {
-  font-size: 0.78rem;
-}
-
-/* Item setiap playlist di dropdown */
-.spj-dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
-  cursor: pointer;
-  transition: background-color 0.15s;
-}
-
-.spj-dropdown-item:hover {
-  background-color: var(--bg-highlight);
-}
-
-/* Style kalau lagu sudah ada di playlist ini */
-.spj-already-added {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.spj-already-added:hover {
-  background-color: transparent;
-}
-
-/* Cover playlist kecil di dalam dropdown */
-.spj-item-cover {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  border-radius: 6px;
-  background-color: var(--bg-surface);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  color: var(--text-subdued);
-  flex-shrink: 0;
-}
-
-.spj-item-cover img {
-  width: 36px;
-  height: 36px;
-  object-fit: cover;
-  display: block;
-}
-
-.spj-item-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.spj-item-name {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.spj-item-count {
-  font-size: 0.75rem;
-  color: var(--text-subdued);
-}
-
-.spj-check {
-  color: var(--accent);
-  flex-shrink: 0;
+@media (max-width: 768px) {
+  .detail-main { flex-direction: column; text-align: center; gap: 28px; padding: 24px 24px 80px; }
+  .main-cover { width: 260px; height: 260px; }
+  .actions { justify-content: center; }
 }
 </style>

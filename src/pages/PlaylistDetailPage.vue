@@ -13,667 +13,280 @@ const player = usePlayerStore()
 const profileStore = useProfileStore()
 const playlistStore = usePlaylistStore()
 
-// Ambil ID playlist dari URL, contoh: /playlist/123 → id = 123
 const playlistId = computed(() => Number(route.params.id))
+const playlist = computed(() => playlistStore.playlists.find(p => p.id === playlistId.value))
+const isPlaylistPlaying = computed(() =>
+  player.isPlaying && !!playlist.value?.songs.some(s => s.id === player.currentSong?.id))
 
-// Cari data playlist berdasarkan ID
-const playlist = computed(() =>
-  playlistStore.playlists.find(p => p.id === playlistId.value)
-)
-
-// Cek apakah playlist sedang aktif diputar
-const isPlaylistPlaying = computed(() => {
-  if (!playlist.value || playlist.value.songs.length === 0) return false
-  return (
-    player.isPlaying &&
-    playlist.value.songs.some(s => s.id === player.currentSong?.id)
-  )
-})
-
-// Play semua lagu di playlist dari lagu pertama
-const playAll = () => {
-  if (!playlist.value || playlist.value.songs.length === 0) return
+const togglePlayAll = () => {
+  if (isPlaylistPlaying.value) { player.togglePlay(); return }
+  if (!playlist.value?.songs.length) return
   player.playSong(playlist.value.songs[0], playlist.value.songs)
 }
-
-// Toggle play/pause untuk playlist
-const togglePlayAll = () => {
-  if (isPlaylistPlaying.value) {
-    player.togglePlay()
-  } else {
-    playAll()
-  }
-}
-
-// Play satu lagu tertentu dari dalam playlist
 const playSong = (songId: number) => {
   if (!playlist.value) return
   const song = playlist.value.songs.find(s => s.id === songId)
-  if (!song) return
-  player.playSong(song, playlist.value.songs)
+  if (song) player.playSong(song, playlist.value.songs)
 }
+const isSongPlaying = (songId: number) => player.currentSong?.id === songId && player.isPlaying
+const removeSong = (songId: number) => playlistStore.removeSongFromPlaylist(playlistId.value, songId)
 
-// Cek apakah lagu tertentu sedang diputar
-const isSongPlaying = (songId: number) => {
-  return player.currentSong?.id === songId && player.isPlaying
-}
-
-// Hapus lagu dari playlist ini
-const removeSong = (songId: number) => {
-  playlistStore.removeSongFromPlaylist(playlistId.value, songId)
-}
-
-// State untuk mode edit nama playlist
 const isEditingName = ref(false)
 const editedName = ref('')
-
-// Masuk ke mode edit nama
-const startEditName = () => {
-  editedName.value = playlist.value?.name || ''
-  isEditingName.value = true
-}
-
-// Simpan nama baru playlist
+const startEditName = () => { editedName.value = playlist.value?.name || ''; isEditingName.value = true }
 const saveEditName = () => {
   if (!editedName.value.trim()) return
   const pl = playlistStore.playlists.find(p => p.id === playlistId.value)
-  if (!pl) return
-  pl.name = editedName.value.trim()
-  playlistStore.save()
+  if (pl) { pl.name = editedName.value.trim(); playlistStore.save() }
   isEditingName.value = false
 }
-
-// Batal edit nama
-const cancelEditName = () => {
-  isEditingName.value = false
-}
-
-// Hapus seluruh playlist lalu kembali ke home
-const deletePlaylist = () => {
-  playlistStore.deletePlaylist(playlistId.value)
-  router.push('/')
-}
+const deletePlaylist = () => { playlistStore.deletePlaylist(playlistId.value); router.push('/') }
 </script>
 
 <template>
-  <div class="playlist-page" :class="{ 'is-light': !profileStore.isDarkMode }">
-
-    <!-- Kalau playlist tidak ditemukan -->
+  <div class="pl-page page-enter">
     <div v-if="!playlist" class="not-found">
+      <ListMusic :size="48" class="nf-icon" />
       <p>Playlist not found</p>
       <button class="back-btn" @click="router.push('/')">← Back to Home</button>
     </div>
 
     <template v-else>
-      <!-- Blurred background dari cover playlist -->
-      <div
-        class="bg-blur"
-        :style="{ backgroundImage: playlist.cover ? `url(${playlist.cover})` : 'none' }"
-      ></div>
-      <div class="bg-overlay"></div>
+      <div class="pl-bg" :style="{ backgroundImage: playlist.cover ? `url(${playlist.cover})` : 'none' }"></div>
+      <div class="pl-overlay"></div>
 
-      <div class="content-wrapper">
-        <div class="nav-container">
-          <NavBar />
-        </div>
+      <div class="pl-content">
+        <NavBar />
 
-        <!-- Header playlist: cover + nama + info -->
-        <div class="playlist-header">
-
-          <!-- Cover playlist -->
-          <div class="playlist-cover">
-            <img v-if="playlist.cover" :src="playlist.cover" alt="cover" />
-            <div v-else class="cover-placeholder">
-              <ListMusic :size="64" />
-            </div>
+        <!-- Header -->
+        <div class="pl-header">
+          <div class="pl-cover">
+            <img v-if="playlist.cover" :src="playlist.cover" />
+            <div v-else class="cover-placeholder"><ListMusic :size="56" /></div>
           </div>
+          <div class="pl-info">
+            <span class="pl-eyebrow">Playlist</span>
 
-          <!-- Info playlist -->
-          <div class="playlist-info">
-            <span class="type-label">Playlist</span>
-
-            <!-- Nama playlist: mode normal atau mode edit -->
-            <div class="name-row">
-              <div v-if="!isEditingName" class="name-display">
-                <h1 class="playlist-name">{{ playlist.name }}</h1>
-                <!-- Tombol edit nama -->
-                <button class="icon-btn" @click="startEditName" title="Edit name">
-                  <Pencil :size="20" />
-                </button>
-              </div>
-
-              <!-- Input edit nama -->
-              <div v-else class="name-edit">
-                <input
-                  v-model="editedName"
-                  class="name-input"
-                  type="text"
-                  @keyup.enter="saveEditName"
-                  autofocus
-                />
-                <button class="icon-btn" @click="saveEditName" title="Save">
-                  <Check :size="20" />
-                </button>
-                <button class="icon-btn" @click="cancelEditName" title="Cancel">
-                  <X :size="20" />
-                </button>
-              </div>
+            <div class="name-row" v-if="!isEditingName">
+              <h1 class="pl-name">{{ playlist.name }}</h1>
+              <button class="icon-btn" @click="startEditName"><Pencil :size="18" /></button>
+            </div>
+            <div class="name-edit" v-else>
+              <input v-model="editedName" class="name-input" @keyup.enter="saveEditName" autofocus />
+              <button class="icon-btn accent" @click="saveEditName"><Check :size="18" /></button>
+              <button class="icon-btn" @click="isEditingName = false"><X :size="18" /></button>
             </div>
 
-            <!-- Jumlah lagu -->
-            <p class="playlist-meta">{{ playlist.songs.length }} songs</p>
+            <p class="pl-meta">{{ playlist.songs.length }} {{ playlist.songs.length === 1 ? 'song' : 'songs' }}</p>
 
-            <!-- Tombol aksi: Play All + Delete Playlist -->
-            <div class="playlist-actions">
-              <button
-                class="play-all-btn"
-                :disabled="playlist.songs.length === 0"
-                @click="togglePlayAll"
-              >
-                <Pause v-if="isPlaylistPlaying" :size="28" fill="currentColor" stroke="currentColor" />
-                <Play v-else :size="28" fill="currentColor" stroke="currentColor" style="margin-left: 3px;" />
+            <div class="pl-actions">
+              <button class="play-all-btn" :disabled="!playlist.songs.length" @click="togglePlayAll">
+                <Pause v-if="isPlaylistPlaying" :size="26" fill="currentColor" stroke="currentColor" />
+                <Play v-else :size="26" fill="currentColor" stroke="currentColor" style="margin-left:3px" />
               </button>
-
-              <button class="delete-all-btn" @click="deletePlaylist" title="Delete Playlist">
-                <Trash2 :size="20" />
-                Delete Playlist
+              <button class="delete-btn" @click="deletePlaylist">
+                <Trash2 :size="16" /> Delete Playlist
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Daftar lagu di dalam playlist -->
+        <!-- Songs -->
         <div class="songs-section">
-
-          <!-- Kalau playlist kosong -->
-          <div v-if="playlist.songs.length === 0" class="empty-playlist">
-            <ListMusic :size="48" />
+          <div v-if="!playlist.songs.length" class="empty-pl">
+            <div class="empty-icon"><ListMusic :size="28" /></div>
             <p>This playlist is empty</p>
-            <small>Go to a song and click "Add to Playlist"</small>
+            <small>Add songs from the song detail page</small>
           </div>
 
-          <!-- List lagu -->
-          <div v-else class="songs-list">
-
-            <!-- Header kolom -->
-            <div class="songs-list-header">
-              <span class="col-num">#</span>
-              <span class="col-title">Title</span>
-              <span class="col-artist">Artist</span>
-              <span class="col-action"></span>
+          <div v-else class="songs-table">
+            <div class="table-head">
+              <span class="col-n">#</span>
+              <span class="col-t">Title</span>
+              <span class="col-a">Artist</span>
+              <span class="col-x"></span>
             </div>
+            <div class="table-divider"></div>
 
-            <div class="songs-list-divider"></div>
-
-            <!-- Baris setiap lagu -->
             <div
-              v-for="(song, index) in playlist.songs"
-              :key="song.id"
-              class="song-row"
-              :class="{ 'is-playing': isSongPlaying(song.id) }"
+              v-for="(song, idx) in playlist.songs" :key="song.id"
+              class="song-row" :class="{ playing: isSongPlaying(song.id) }"
               @click="playSong(song.id)"
             >
-              <!-- Nomor urut / icon play saat hover -->
-              <div class="col-num">
-                <span class="row-num">{{ index + 1 }}</span>
-                <div class="row-play-icon">
-                  <Pause v-if="isSongPlaying(song.id)" :size="16" fill="currentColor" stroke="currentColor" />
-                  <Play v-else :size="16" fill="currentColor" stroke="currentColor" />
-                </div>
-              </div>
-
-              <!-- Cover + judul lagu -->
-              <div class="col-title">
-                <img :src="song.cover" class="row-cover" :alt="song.title" />
-                <span class="row-title" :class="{ 'active-title': isSongPlaying(song.id) }">
-                  {{ song.title }}
+              <div class="col-n">
+                <span class="row-num">{{ idx + 1 }}</span>
+                <span class="row-play">
+                  <Pause v-if="isSongPlaying(song.id)" :size="14" fill="currentColor" stroke="currentColor" />
+                  <Play v-else :size="14" fill="currentColor" stroke="currentColor" />
                 </span>
               </div>
-
-              <!-- Nama artis -->
-              <span class="col-artist row-artist">{{ song.artist }}</span>
-
-              <!-- Tombol hapus lagu dari playlist -->
-              <div class="col-action">
-                <button
-                  class="remove-btn"
-                  @click.stop="removeSong(song.id)"
-                  title="Remove from playlist"
-                >
-                  <Trash2 :size="16" />
-                </button>
+              <div class="col-t">
+                <img :src="song.cover" class="row-cover" />
+                <span class="row-title" :class="{ accent: isSongPlaying(song.id) }">{{ song.title }}</span>
+              </div>
+              <span class="col-a row-artist">{{ song.artist }}</span>
+              <div class="col-x">
+                <button class="remove-btn" @click.stop="removeSong(song.id)"><Trash2 :size="14" /></button>
               </div>
             </div>
-
           </div>
         </div>
-
       </div>
     </template>
   </div>
 </template>
 
 <style scoped>
-.playlist-page {
-  position: relative;
-  min-height: 100vh;
-  color: #ffffff;
-  overflow: hidden;
+.pl-page { position: relative; min-height: 100vh; }
+
+.pl-bg {
+  position: fixed; inset: 0;
+  background-size: cover; background-position: center;
+  filter: blur(80px) saturate(1.3); opacity: 0.2;
+  z-index: 0; pointer-events: none; transform: scale(1.2);
+}
+.pl-overlay {
+  position: fixed; inset: 0;
+  background: linear-gradient(180deg, rgba(13,17,23,0.5) 0%, rgba(13,17,23,0.92) 50%);
+  z-index: 1; pointer-events: none;
 }
 
-.playlist-page.is-light {
-  color: #111111;
+.pl-content { position: relative; z-index: 2; min-height: 100vh; }
+
+.pl-header {
+  display: flex; align-items: flex-end; gap: 36px;
+  padding: 16px 28px 36px;
 }
 
-/* Background blur dari cover playlist */
-.bg-blur {
-  position: absolute;
-  inset: -10%;
-  background-size: cover;
-  background-position: center;
-  filter: blur(100px);
-  z-index: 0;
-  opacity: 0.4;
+.pl-cover {
+  width: 200px; height: 200px; border-radius: 16px; overflow: hidden; flex-shrink: 0;
+  box-shadow: 0 20px 56px rgba(0,0,0,0.6);
 }
-
-.bg-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,0.4) 0%, var(--bg-base) 40%);
-  z-index: 1;
-}
-
-.is-light .bg-overlay {
-  background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, var(--bg-base) 40%);
-}
-
-.content-wrapper {
-  position: relative;
-  z-index: 2;
-  min-height: 100vh;
-}
-
-.nav-container {
-  padding: 0 32px;
-}
-
-/* Header playlist */
-.playlist-header {
-  display: flex;
-  align-items: flex-end;
-  gap: 32px;
-  padding: 32px 32px 40px;
-}
-
-@media (max-width: 600px) {
-  .playlist-header {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-  }
-}
-
-/* Cover playlist besar */
-.playlist-cover {
-  width: 220px;
-  height: 220px;
-  border-radius: 12px;
-  flex-shrink: 0;
-  overflow: hidden;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
-}
-
-.playlist-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
+.pl-cover img { width: 100%; height: 100%; object-fit: cover; }
 .cover-placeholder {
-  width: 100%;
-  height: 100%;
-  background-color: var(--bg-elevated);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-subdued);
+  width: 100%; height: 100%; background: var(--bg-elevated);
+  display: flex; align-items: center; justify-content: center; color: var(--text-subdued);
 }
 
-/* Info playlist */
-.playlist-info {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  gap: 8px;
+.pl-info { display: flex; flex-direction: column; gap: 8px; }
+.pl-eyebrow {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 2.5px;
+  text-transform: uppercase; color: var(--accent);
 }
-
-.type-label {
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  color: var(--text-secondary);
-}
-
-/* Baris nama + tombol edit */
-.name-row {
-  display: flex;
-  align-items: center;
-}
-
-.name-display {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.playlist-name {
-  font-size: clamp(2rem, 5vw, 4rem);
-  font-weight: 900;
-  margin: 0;
-  line-height: 1.1;
-}
-
-/* Input edit nama */
-.name-edit {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
+.name-row { display: flex; align-items: center; gap: 12px; }
+.pl-name { font-size: clamp(2rem, 4.5vw, 3.6rem); font-weight: 900; margin: 0; letter-spacing: -1px; line-height: 1.05; }
+.name-edit { display: flex; align-items: center; gap: 8px; }
 .name-input {
-  font-size: 2rem;
-  font-weight: 700;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid var(--accent);
-  color: inherit;
-  outline: none;
-  padding: 4px 0;
-  width: 280px;
+  font-size: 2rem; font-weight: 700; background: transparent;
+  border: none; border-bottom: 2px solid var(--accent);
+  color: var(--text-primary); outline: none; padding: 4px 0; width: 260px;
+  font-family: var(--font-family);
 }
 
-/* Tombol icon (edit, save, cancel) */
 .icon-btn {
-  background: none;
-  border: none;
-  color: var(--text-subdued);
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  transition: all 0.2s;
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-secondary); cursor: pointer; padding: 7px; border-radius: 8px;
+  display: flex; align-items: center; transition: all var(--transition);
 }
+.icon-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.12); }
+.icon-btn.accent { color: var(--accent); border-color: rgba(0,210,200,0.3); }
+.icon-btn.accent:hover { background: var(--accent-glow); }
 
-.icon-btn:hover {
-  color: var(--text-primary);
-  background-color: var(--bg-highlight);
-}
-
-.playlist-meta {
-  font-size: 0.95rem;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-/* Tombol aksi Play All + Delete */
-.playlist-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 8px;
-}
+.pl-meta { color: var(--text-secondary); margin: 0; font-size: 0.9rem; }
+.pl-actions { display: flex; align-items: center; gap: 16px; margin-top: 4px; }
 
 .play-all-btn {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background-color: var(--accent);
-  color: #000;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: transform 0.2s, background-color 0.2s;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  width: 60px; height: 60px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #000; border: none; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all var(--transition);
+  box-shadow: 0 8px 24px rgba(0,210,200,0.35);
 }
+.play-all-btn:hover:not(:disabled) { transform: scale(1.08); box-shadow: 0 12px 32px rgba(0,210,200,0.5); }
+.play-all-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-.play-all-btn:hover:not(:disabled) {
-  transform: scale(1.05);
-  background-color: var(--accent-hover);
+.delete-btn {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2);
+  color: #fca5a5; border-radius: var(--radius-full);
+  padding: 10px 20px; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; transition: all var(--transition); font-family: var(--font-family);
 }
+.delete-btn:hover { background: rgba(248,113,113,0.18); border-color: #f87171; color: #fca5a5; }
 
-.play-all-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+/* Songs table */
+.songs-section { padding: 0 28px 80px; }
+.empty-pl {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 64px 0; color: var(--text-subdued); text-align: center;
 }
-
-.delete-all-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: none;
-  border: 1px solid rgba(255,255,255,0.2);
-  color: inherit;
-  border-radius: 32px;
-  padding: 10px 20px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s;
+.empty-icon {
+  width: 64px; height: 64px; border-radius: 16px;
+  background: var(--bg-elevated); display: flex; align-items: center; justify-content: center;
 }
+.empty-pl p { font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin: 0; }
+.empty-pl small { font-size: 0.85rem; }
 
-.is-light .delete-all-btn {
-  border-color: rgba(0,0,0,0.15);
+.songs-table { display: flex; flex-direction: column; }
+.table-head {
+  display: grid; grid-template-columns: 44px 1fr 1fr 44px;
+  padding: 0 12px 10px;
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1.5px; color: var(--text-subdued);
 }
+.table-divider { height: 1px; background: rgba(255,255,255,0.06); margin-bottom: 6px; }
 
-.delete-all-btn:hover {
-  background-color: #e53e3e;
-  border-color: #e53e3e;
-  color: white;
-}
-
-/* Section daftar lagu */
-.songs-section {
-  padding: 0 32px 48px;
-}
-
-.empty-playlist {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 64px 0;
-  color: var(--text-subdued);
-  text-align: center;
-}
-
-.empty-playlist p {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin: 0;
-  color: var(--text-secondary);
-}
-
-.empty-playlist small {
-  font-size: 0.9rem;
-}
-
-/* Tabel lagu */
-.songs-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.songs-list-header {
-  display: grid;
-  grid-template-columns: 48px 1fr 1fr 48px;
-  padding: 0 16px 8px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--text-subdued);
-}
-
-.songs-list-divider {
-  height: 1px;
-  background-color: var(--bg-highlight);
-  margin-bottom: 8px;
-}
-
-/* Setiap baris lagu */
 .song-row {
-  display: grid;
-  grid-template-columns: 48px 1fr 1fr 48px;
-  align-items: center;
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background-color 0.2s;
+  display: grid; grid-template-columns: 44px 1fr 1fr 44px;
+  align-items: center; padding: 8px 12px;
+  border-radius: var(--radius-sm); cursor: pointer;
+  transition: all var(--transition);
 }
+.song-row:hover { background: rgba(255,255,255,0.05); }
+.song-row:hover .row-num { opacity: 0; }
+.song-row:hover .row-play { opacity: 1; }
+.song-row:hover .remove-btn { opacity: 1; }
+.song-row.playing { background: rgba(0,210,200,0.06); }
+.song-row.playing .row-num { opacity: 0; }
+.song-row.playing .row-play { opacity: 1; color: var(--accent); }
 
-.song-row:hover {
-  background-color: var(--bg-highlight);
-}
+.col-n { position: relative; display: flex; align-items: center; justify-content: center; }
+.row-num { font-size: 0.88rem; color: var(--text-subdued); transition: opacity var(--transition); }
+.row-play { position: absolute; opacity: 0; transition: opacity var(--transition); color: var(--text-primary); }
 
-/* Highlight lagu yang sedang diputar */
-.song-row.is-playing {
-  background-color: var(--bg-elevated);
-}
+.col-t { display: flex; align-items: center; gap: 12px; overflow: hidden; }
+.row-cover { width: 42px; height: 42px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+.row-title { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-title.accent { color: var(--accent); }
 
-/* Kolom nomor urut */
-.col-num {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-}
+.col-a { font-size: 0.82rem; }
+.row-artist { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.row-num {
-  font-size: 0.9rem;
-  color: var(--text-subdued);
-}
-
-/* Icon play/pause muncul saat hover, nomor disembunyikan */
-.row-play-icon {
-  position: absolute;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.song-row:hover .row-num {
-  opacity: 0;
-}
-
-.song-row:hover .row-play-icon {
-  opacity: 1;
-}
-
-.song-row.is-playing .row-num {
-  opacity: 0;
-}
-
-.song-row.is-playing .row-play-icon {
-  opacity: 1;
-  color: var(--accent);
-}
-
-/* Kolom judul lagu */
-.col-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  overflow: hidden;
-}
-
-.row-cover {
-  width: 44px;
-  height: 44px;
-  border-radius: 6px;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.row-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Warna hijau untuk lagu yang sedang diputar */
-.active-title {
-  color: var(--accent);
-}
-
-/* Kolom artis */
-.col-artist {
-  font-size: 0.85rem;
-}
-
-.row-artist {
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Tombol hapus lagu */
-.col-action {
-  display: flex;
-  justify-content: center;
-}
-
+.col-x { display: flex; justify-content: center; }
 .remove-btn {
-  background: none;
-  border: none;
-  color: var(--text-subdued);
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  opacity: 0;
-  transition: all 0.2s;
+  background: none; border: none; color: var(--text-subdued);
+  cursor: pointer; padding: 6px; border-radius: 6px;
+  display: flex; align-items: center; opacity: 0; transition: all var(--transition);
 }
-
-.song-row:hover .remove-btn {
-  opacity: 1;
-}
-
-.remove-btn:hover {
-  color: #e53e3e;
-}
+.remove-btn:hover { color: #f87171; background: rgba(248,113,113,0.1); }
 
 /* Not found */
 .not-found {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  gap: 16px;
-  color: var(--text-secondary);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 100vh; gap: 16px; color: var(--text-secondary);
 }
-
+.nf-icon { color: var(--text-subdued); }
+.not-found p { font-size: 1.1rem; font-weight: 600; margin: 0; }
 .back-btn {
-  background: none;
-  border: 1px solid var(--text-subdued);
-  color: var(--text-secondary);
-  border-radius: var(--radius-full);
-  padding: 10px 24px;
-  cursor: pointer;
-  font-size: 0.95rem;
-  transition: all 0.2s;
+  background: none; border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text-secondary); border-radius: var(--radius-full);
+  padding: 10px 24px; cursor: pointer; font-size: 0.9rem;
+  transition: all var(--transition); font-family: var(--font-family);
 }
+.back-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-.back-btn:hover {
-  border-color: var(--text-primary);
-  color: var(--text-primary);
+@media (max-width: 600px) {
+  .pl-header { flex-direction: column; align-items: center; text-align: center; }
+  .pl-actions { justify-content: center; }
 }
 </style>
