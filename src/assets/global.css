@@ -24,6 +24,8 @@
   --player-bar-border: rgba(255, 255, 255, 0.06);
   --player-control-hover: rgba(255, 255, 255, 0.06);
   --player-cover-overlay: rgba(0, 0, 0, 0.45);
+  --playlist-overlay-start: rgba(13, 17, 23, 0.5);
+  --playlist-overlay-end: rgba(13, 17, 23, 0.92);
   --topbar-height: 64px;
   --radius-sm:     8px;
   --radius-md:     14px;
@@ -55,6 +57,8 @@
   --player-bar-border: rgba(255, 255, 255, 0.06);
   --player-control-hover: rgba(255, 255, 255, 0.06);
   --player-cover-overlay: rgba(0, 0, 0, 0.45);
+  --playlist-overlay-start: rgba(13, 17, 23, 0.5);
+  --playlist-overlay-end: rgba(13, 17, 23, 0.92);
 }
 
 [data-theme='light'] {
@@ -79,6 +83,8 @@
   --player-bar-border: rgba(0, 0, 0, 0.08);
   --player-control-hover: rgba(0, 0, 0, 0.04);
   --player-cover-overlay: rgba(255, 255, 255, 0.35);
+  --playlist-overlay-start: rgba(255, 255, 255, 0.45);
+  --playlist-overlay-end: rgba(255, 255, 255, 0.95);
 }
 
 *, *::before, *::after { box-sizing: border-box; }

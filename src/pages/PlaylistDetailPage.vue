@@ -147,7 +147,7 @@ const deletePlaylist = () => { playlistStore.deletePlaylist(playlistId.value); r
 }
 .pl-overlay {
   position: fixed; inset: 0;
-  background: linear-gradient(180deg, rgba(13,17,23,0.5) 0%, rgba(13,17,23,0.92) 50%);
+  background: linear-gradient(180deg, var(--playlist-overlay-start) 0%, var(--playlist-overlay-end) 50%);
   z-index: 1; pointer-events: none;
 }
 
@@ -184,12 +184,12 @@ const deletePlaylist = () => { playlistStore.deletePlaylist(playlistId.value); r
 }
 
 .icon-btn {
-  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+  background: var(--bg-elevated); border: 1px solid var(--sidebar-border);
   color: var(--text-secondary); cursor: pointer; padding: 7px; border-radius: 8px;
   display: flex; align-items: center; transition: all var(--transition);
 }
-.icon-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.12); }
-.icon-btn.accent { color: var(--accent); border-color: rgba(0,210,200,0.3); }
+.icon-btn:hover { color: var(--text-primary); background: var(--bg-highlight); }
+.icon-btn.accent { color: var(--accent); border-color: var(--accent-glow); }
 .icon-btn.accent:hover { background: var(--accent-glow); }
 
 .pl-meta { color: var(--text-secondary); margin: 0; font-size: 0.9rem; }
@@ -234,7 +234,7 @@ const deletePlaylist = () => { playlistStore.deletePlaylist(playlistId.value); r
   font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
   letter-spacing: 1.5px; color: var(--text-subdued);
 }
-.table-divider { height: 1px; background: rgba(255,255,255,0.06); margin-bottom: 6px; }
+.table-divider { height: 1px; background: var(--sidebar-border); margin-bottom: 6px; }
 
 .song-row {
   display: grid; grid-template-columns: 44px 1fr 1fr 44px;
@@ -242,11 +242,11 @@ const deletePlaylist = () => { playlistStore.deletePlaylist(playlistId.value); r
   border-radius: var(--radius-sm); cursor: pointer;
   transition: all var(--transition);
 }
-.song-row:hover { background: rgba(255,255,255,0.05); }
+.song-row:hover { background: var(--sidebar-hover); }
 .song-row:hover .row-num { opacity: 0; }
 .song-row:hover .row-play { opacity: 1; }
 .song-row:hover .remove-btn { opacity: 1; }
-.song-row.playing { background: rgba(0,210,200,0.06); }
+.song-row.playing { background: rgba(29, 185, 84, 0.12); }
 .song-row.playing .row-num { opacity: 0; }
 .song-row.playing .row-play { opacity: 1; color: var(--accent); }
 
@@ -278,7 +278,7 @@ const deletePlaylist = () => { playlistStore.deletePlaylist(playlistId.value); r
 .nf-icon { color: var(--text-subdued); }
 .not-found p { font-size: 1.1rem; font-weight: 600; margin: 0; }
 .back-btn {
-  background: none; border: 1px solid rgba(255,255,255,0.12);
+  background: var(--bg-elevated); border: 1px solid var(--sidebar-border);
   color: var(--text-secondary); border-radius: var(--radius-full);
   padding: 10px 24px; cursor: pointer; font-size: 0.9rem;
   transition: all var(--transition); font-family: var(--font-family);
