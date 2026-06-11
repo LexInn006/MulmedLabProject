@@ -7,97 +7,123 @@ import type { SongData } from '../data/songs'
 import NavBar from '../components/NavBar.vue'
 import SearchBar from '../components/SearchBar.vue'
 import SongCard from '../components/SongCard.vue'
-import { Clapperboard } from 'lucide-vue-next'
+import { Video } from 'lucide-vue-next'
 
 const router = useRouter()
 const profile = useProfileStore()
+
 const searchQuery = ref('')
 
-const mvAsSongs = computed(() => musicVideos.map(mv => ({
-  id: mv.id, title: mv.title, artist: mv.artist,
-  cover: mv.cover, audio: '', mv: mv.id, duration: mv.duration
-} as unknown as SongData)))
-
-const filteredMVs = computed(() => {
-  if (!searchQuery.value) return mvAsSongs.value
-  const q = searchQuery.value.toLowerCase()
-  return mvAsSongs.value.filter(mv =>
-    mv.title.toLowerCase().includes(q) || mv.artist.toLowerCase().includes(q))
+// Mengubah format data 'musicVideos' menjadi mirip format 'SongData'
+// Ini dilakukan agar komponen 'SongCard' (yang awalnya dibuat untuk lagu) bisa menampilkan data video ini
+const mvAsSongs = computed(() => {
+  return musicVideos.map(mv => ({
+    id: mv.id,
+    title: mv.title,
+    artist: mv.artist,
+    cover: mv.cover,
+    audio: '',
+    mv: mv.id,
+    duration: mv.duration
+  } as unknown as SongData))
 })
 
+// Fitur pencarian/filter otomatis
+const filteredMVs = computed(() => {
+  if (!searchQuery.value) return mvAsSongs.value
+  const query = searchQuery.value.toLowerCase()
+  return mvAsSongs.value.filter(mv => 
+    mv.title.toLowerCase().includes(query) || 
+    mv.artist.toLowerCase().includes(query)
+  )
+})
+
+// Fungsi untuk pindah ke halaman detail video musik saat sebuah video diklik
 const goToMVDetail = (payload: any) => {
-  const id = typeof payload === 'number' ? payload : payload.id
+  const id = typeof payload === 'number' ? payload : payload.id;
   router.push(`/music-video/${id}`)
 }
 </script>
 
 <template>
-  <div class="mv-page page-enter">
-    <div class="mv-hero">
-      <div class="hero-bg"></div>
-      <NavBar><SearchBar v-model="searchQuery" /></NavBar>
+  <div class="mv-page">
+    <div class="mv-header">
+      <NavBar>
+        <SearchBar v-model="searchQuery" />
+      </NavBar>
       <div class="mv-heading">
-        <div class="heading-icon-wrap">
-          <Clapperboard :size="22" />
-        </div>
-        <div>
-          <h1 class="mv-title">Music Videos</h1>
-          <p class="mv-sub">Watch your favorite artists in action</p>
+        <Video :size="48" class="heading-icon" />
+        <div class="heading-text">
+          <h1>Music Videos</h1>
+          <p>Watch music videos from your favorite artists</p>
         </div>
       </div>
     </div>
-
-    <div class="mv-body">
+    
+    <div class="mv-content">
       <div class="card-grid">
         <SongCard
-          v-for="(mv, i) in filteredMVs"
+          v-for="(mv, index) in filteredMVs"
           :key="mv.id"
           :song="mv"
           :isDark="profile.isDarkMode"
-          :style="{ animationDelay: `${i * 0.05}s` }"
+          :style="{ animationDelay: `${index * 0.05}s` }"
           class="fade-in"
           @click="goToMVDetail"
           @play="goToMVDetail"
         />
       </div>
-      <p v-if="filteredMVs.length === 0" class="empty-msg">No music videos found</p>
+      <p v-if="filteredMVs.length === 0" class="no-results">No music videos found</p>
     </div>
   </div>
 </template>
 
 <style scoped>
-.mv-hero {
-  position: relative; padding-bottom: 32px; overflow: hidden;
-}
-.hero-bg {
-  position: absolute; inset: 0;
-  background: linear-gradient(135deg, rgba(236,72,153,0.12), rgba(124,106,255,0.1), transparent);
-  pointer-events: none;
-}
-.hero-bg::after {
-  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 80px;
-  background: linear-gradient(to bottom, transparent, var(--bg-base));
+.mv-header {
+  background: linear-gradient(180deg, rgba(236,72,153,0.3) 0%, var(--bg-base) 100%);
+  padding-bottom: 32px;
 }
 
 .mv-heading {
-  display: flex; align-items: center; gap: 18px;
-  padding: 12px 28px 0; position: relative; z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 32px 32px 0;
 }
-.heading-icon-wrap {
-  width: 52px; height: 52px; border-radius: 14px;
-  background: linear-gradient(135deg, rgba(236,72,153,0.3), rgba(124,106,255,0.3));
-  border: 1px solid rgba(236,72,153,0.25);
-  display: flex; align-items: center; justify-content: center;
-  color: #f472b6;
-}
-.mv-title { font-size: 2rem; font-weight: 900; margin: 0 0 4px; letter-spacing: -0.5px; }
-.mv-sub { color: var(--text-secondary); margin: 0; font-size: 0.9rem; }
 
-.mv-body { padding: 0 28px 80px; }
+.heading-icon {
+  background: var(--bg-elevated);
+  padding: 12px;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.heading-text h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin: 0 0 4px;
+}
+
+.heading-text p {
+  color: var(--text-secondary);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.mv-content {
+  padding: 0 32px 32px;
+}
+
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 24px;
 }
-.empty-msg { color: var(--text-subdued); text-align: center; padding: 48px; }
+
+.no-results {
+  color: var(--text-subdued);
+  text-align: center;
+  padding: 40px;
+  font-size: 1.1rem;
+}
 </style>

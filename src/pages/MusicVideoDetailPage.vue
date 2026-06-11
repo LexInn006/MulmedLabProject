@@ -12,12 +12,9 @@ const router = useRouter()
 const player = usePlayerStore()
 
 const video = ref<HTMLVideoElement | null>(null)
-const videoContainer = ref<HTMLElement | null>(null)
 const videoReady = ref(false)
-const isVideoPlaying = ref(false)
-const isFullscreen = ref(false)
 
-// Volume
+// ── Volume Control State ──────────────────────────────────────
 const videoVolume = ref(1)
 const videoMuted = ref(false)
 const prevVideoVolume = ref(1)
@@ -27,7 +24,12 @@ const setVideoVolume = (val: number) => {
   videoMuted.value = val === 0
   if (video.value) video.value.volume = val
 }
-const onVolumeInput = (e: Event) => setVideoVolume(Number((e.target as HTMLInputElement).value))
+
+const onVolumeInput = (e: Event) => {
+  const val = Number((e.target as HTMLInputElement).value)
+  setVideoVolume(val)
+}
+
 const toggleVideoMute = () => {
   if (videoMuted.value) {
     videoMuted.value = false
@@ -36,253 +38,487 @@ const toggleVideoMute = () => {
   } else {
     prevVideoVolume.value = videoVolume.value
     videoMuted.value = true
-    videoVolume.value = 0
     if (video.value) video.value.volume = 0
+    videoVolume.value = 0
   }
 }
 
 const mvId = computed(() => Number(route.params.id))
 const currIdx = ref(musicVideos.findIndex(mv => mv.id === mvId.value))
 const currMV = computed(() => musicVideos[currIdx.value] || musicVideos[0])
-const currSong = computed(() => songs.find(s => s.id === currMV.value.songId) || songs[0])
+const currAssociatedSong = computed(() => songs.find(s => s.id === currMV.value.songId) || songs[0])
 
+// ── Bug Fix #3: track whether video is actively playing ───────
+const isVideoPlaying = ref(false)
+
+const isThisSongPlaying = computed(() => {
+  return player.currentSong?.id === currAssociatedSong.value.id && player.isPlaying
+})
+
+const tryPlay = () => {
+  if (!video.value) return
+  // Un-mute video when we intentionally play it
+  video.value.volume = videoVolume.value
+  video.value.play().catch(() => {
+    // Autoplay blocked — user will click to start
+  })
+}
+
+const onVideoCanPlay = () => {
+  videoReady.value = true
+}
+
+// ── Bug Fix #3: Pause bottom-player music when video plays ─────
+// When user hits play on the video, pause the BottomPlayer audio
 const playVideo = () => {
   if (isVideoPlaying.value) {
+    // Pause the video
     video.value?.pause()
     isVideoPlaying.value = false
-    if (!player.isPlaying && player.currentSong?.id === currSong.value.id) player.togglePlay()
+    // Resume the bottom player if it was paused by us
+    if (!player.isPlaying && player.currentSong?.id === currAssociatedSong.value.id) {
+      player.togglePlay()
+    }
   } else {
-    if (player.isPlaying) player.togglePlay()
+    // Pause bottom player first so audio doesn't overlap
+    if (player.isPlaying) {
+      player.togglePlay() // pause the music
+    }
+    // Start video playback
     if (videoReady.value) {
-      if (video.value) { video.value.volume = videoVolume.value; video.value.play().catch(() => {}) }
+      tryPlay()
       isVideoPlaying.value = true
+    } else {
+      if (player.currentSong?.id !== currAssociatedSong.value.id) {
+        player.playSong(currAssociatedSong.value, songs)
+        player.togglePlay() // immediately pause after loading
+      }
     }
   }
 }
 
-const onVideoCanPlay = () => { videoReady.value = true }
-const onVideoPause  = () => { isVideoPlaying.value = false }
-const onVideoPlay   = () => { isVideoPlaying.value = true }
-const onVideoEnded  = () => { isVideoPlaying.value = false }
+// Sync video pause/resume state
+const onVideoPause = () => { isVideoPlaying.value = false }
+const onVideoPlay  = () => { isVideoPlaying.value = true  }
+const onVideoEnded = () => { isVideoPlaying.value = false }
 
-watch(currMV, () => {
-  videoReady.value = false; isVideoPlaying.value = false
-  nextTick(() => video.value?.load())
-})
+const pauseVideoForAudioPlayback = () => {
+  if (video.value && isVideoPlaying.value) {
+    video.value.pause()
+    isVideoPlaying.value = false
+  }
+}
 
-watch(() => player.currentSong, (s) => {
-  if (!s) return
-  const idx = musicVideos.findIndex(mv => mv.songId === s.id)
-  if (idx !== -1 && idx !== currIdx.value) {
-    currIdx.value = idx
-    router.replace(`/music-video/${musicVideos[idx].id}`)
+watch(
+  () => [player.isPlaying, player.currentSong?.id],
+  ([isPlaying]) => {
+    if (isPlaying) {
+      pauseVideoForAudioPlayback()
+    }
+  },
+  { flush: 'post' }
+)
+
+// Auto-switch MV when the bottom player changes to a different song
+watch(() => player.currentSong, (newSong) => {
+  if (!newSong) return
+  const matchingMvIdx = musicVideos.findIndex(mv => mv.songId === newSong.id)
+  if (matchingMvIdx !== -1 && matchingMvIdx !== currIdx.value) {
+    currIdx.value = matchingMvIdx
+    router.replace(`/music-video/${musicVideos[matchingMvIdx].id}`)
   }
 })
 
-const nextMV = () => { currIdx.value = (currIdx.value + 1) % musicVideos.length }
-const prevMV = () => { currIdx.value = (currIdx.value - 1 + musicVideos.length) % musicVideos.length }
+watch(currMV, () => {
+  videoReady.value = false
+  isVideoPlaying.value = false
+  nextTick(() => {
+    if (video.value) {
+      video.value.load()
+    }
+  })
+})
 
-const onFSChange = () => { isFullscreen.value = !!(document.fullscreenElement || (document as any).webkitFullscreenElement) }
+const changeTrack = (index: number) => {
+  currIdx.value = index
+}
+
+const nextMV = () => {
+  changeTrack((currIdx.value + 1) % musicVideos.length)
+}
+
+const prevMV = () => {
+  changeTrack((currIdx.value - 1 + musicVideos.length) % musicVideos.length)
+}
+
+const videoContainer = ref<HTMLElement | null>(null)
+const isFullscreen = ref(false)
+
+const onFullscreenChange = () => {
+  isFullscreen.value = !!document.fullscreenElement || !!(document as any).webkitFullscreenElement || !!(document as any).msFullscreenElement
+}
+
 onMounted(() => {
-  document.addEventListener('fullscreenchange', onFSChange)
-  document.addEventListener('webkitfullscreenchange', onFSChange)
+  document.addEventListener('fullscreenchange', onFullscreenChange)
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange)
+  document.addEventListener('MSFullscreenChange', onFullscreenChange)
 })
+
 onUnmounted(() => {
-  document.removeEventListener('fullscreenchange', onFSChange)
-  document.removeEventListener('webkitfullscreenchange', onFSChange)
-  if (isVideoPlaying.value && !player.isPlaying && player.currentSong) player.togglePlay()
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
+  document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
+  document.removeEventListener('MSFullscreenChange', onFullscreenChange)
+  // If we leave the page while video is playing, don't leave music paused
+  if (isVideoPlaying.value && !player.isPlaying && player.currentSong) {
+    // resume music if user navigates away
+    player.togglePlay()
+  }
 })
+
+const exitFullscreen = () => {
+  if (document.exitFullscreen) {
+    document.exitFullscreen().catch(err => console.error(err))
+  } else if ((document as any).webkitExitFullscreen) {
+    (document as any).webkitExitFullscreen()
+  } else if ((document as any).msExitFullscreen) {
+    (document as any).msExitFullscreen()
+  }
+}
 
 const goFullscreen = () => {
-  const el = videoContainer.value
-  if (!el) return
-  if (el.requestFullscreen) el.requestFullscreen().catch(() => {})
-  else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen()
+  const elem = videoContainer.value || video.value
+  if (!elem) return
+  
+  if (elem.requestFullscreen) {
+    elem.requestFullscreen().catch(err => console.error("Error attempting to enable fullscreen:", err))
+  } else if ((elem as any).webkitRequestFullscreen) {
+    (elem as any).webkitRequestFullscreen()
+  } else if ((elem as any).msRequestFullscreen) {
+    (elem as any).msRequestFullscreen()
+  }
 }
-const exitFullscreen = () => {
-  if (document.exitFullscreen) document.exitFullscreen()
-  else if ((document as any).webkitExitFullscreen) (document as any).webkitExitFullscreen()
+
+const goToSong = () => {
+  router.push(`/song/${currMV.value.songId}`)
 }
-const goToSong = () => router.push(`/song/${currMV.value.songId}`)
 </script>
 
 <template>
-  <div class="mvd-page page-enter">
-    <NavBar />
-
-    <div class="mvd-body">
-      <!-- Video -->
-      <div class="video-wrap" ref="videoContainer">
-        <video ref="video" class="video-el" :src="currMV.video" :poster="currMV.cover"
-          preload="auto" loop playsinline
-          @canplay="onVideoCanPlay" @click="playVideo"
-          @pause="onVideoPause" @play="onVideoPlay" @ended="onVideoEnded">
-        </video>
-
-        <!-- Play overlay -->
-        <transition name="overlay-fade">
-          <div v-if="!isVideoPlaying" class="video-overlay" @click="playVideo">
-            <div class="big-play-btn">
-              <Play :size="52" fill="currentColor" stroke="currentColor" />
-            </div>
-          </div>
-        </transition>
-
-        <!-- Exit fullscreen -->
-        <button v-if="isFullscreen" class="exit-fs-btn" @click.stop="exitFullscreen">
-          <Minimize :size="20" />
+  <div class="mvd-page">
+    <div class="mvd-header">
+      <NavBar />
+    </div>
+    
+    <div class="mvd-content">
+      <!-- Video Player -->
+      <div class="video-container" ref="videoContainer">
+        <video
+          ref="video"
+          class="video-player"
+          :src="currMV.video"
+          :poster="currMV.cover"
+          preload="auto"
+          loop
+          playsinline
+          @canplay="onVideoCanPlay"
+          @click="playVideo"
+          @pause="onVideoPause"
+          @play="onVideoPlay"
+          @ended="onVideoEnded"
+        ></video>
+        
+        <!-- Center Play Overlay -->
+        <div class="video-overlay" :class="{ hidden: isVideoPlaying }" @click="playVideo">
+          <button class="video-play-overlay" @click.stop="playVideo">
+            <Play :size="64" fill="currentColor" stroke="currentColor" />
+          </button>
+        </div>
+        
+        <!-- Exit Fullscreen Button -->
+        <button v-if="isFullscreen" class="exit-fs-btn" @click.stop="exitFullscreen" title="Exit Fullscreen">
+          <Minimize :size="24" />
         </button>
       </div>
 
-      <!-- Info row -->
-      <div class="mvd-info-row">
-        <div class="mvd-text">
+      
+      <!-- Video Info -->
+      <div class="mvd-info">
+        <div>
           <h2 class="mvd-title">{{ currMV.title }}</h2>
           <p class="mvd-artist">{{ currMV.artist }}</p>
         </div>
-        <button class="song-pill" @click="goToSong">
-          <Music :size="14" /> Listen to Song
+        <button class="song-btn" @click="goToSong">
+          <Music :size="16" /> Listen to Song
         </button>
       </div>
-
-      <!-- Controls panel -->
-      <div class="controls-panel">
-        <button class="ctrl-btn" @click="prevMV"><SkipBack :size="22" /></button>
-
-        <button class="main-play-btn" @click="playVideo">
-          <Pause v-if="isVideoPlaying" :size="24" fill="currentColor" stroke="currentColor" />
-          <Play v-else :size="24" fill="currentColor" stroke="currentColor" style="margin-left:3px" />
-        </button>
-
-        <button class="ctrl-btn" @click="nextMV"><SkipForward :size="22" /></button>
-
-        <!-- Volume -->
-        <div class="vol-group">
-          <button class="ctrl-btn" @click="toggleVideoMute">
-            <VolumeX v-if="videoMuted || videoVolume === 0" :size="18" />
-            <Volume2 v-else :size="18" />
+      
+      <!-- Controls -->
+      <div class="mvd-controls">
+        <div class="mvd-buttons">
+          <button class="ctrl-btn" @click="prevMV" title="Previous Video"><SkipBack :size="24" /></button>
+          
+          <button class="play-btn" @click="playVideo" style="width: 56px; height: 56px;">
+            <Pause v-if="isVideoPlaying" :size="28" fill="currentColor" stroke="currentColor" />
+            <Play v-else :size="28" fill="currentColor" stroke="currentColor" style="margin-left: 2px;" />
           </button>
-          <input type="range" class="vol-slider" min="0" max="1" step="0.01"
-            :value="videoVolume" @input="onVolumeInput"
-            :style="{ '--progress': (videoVolume * 100) + '%' }" />
-        </div>
+          
+          <button class="ctrl-btn" @click="nextMV" title="Next Video"><SkipForward :size="24" /></button>
 
-        <button class="ctrl-btn fs-btn" @click="goFullscreen">
-          <Maximize :size="20" />
-        </button>
+          <!-- ── Bug Fix #1: Volume Control ────────────────────── -->
+          <div class="video-volume">
+            <button class="ctrl-btn" @click="toggleVideoMute" title="Toggle Mute">
+              <VolumeX v-if="videoMuted || videoVolume === 0" :size="20" />
+              <Volume2 v-else :size="20" />
+            </button>
+            <input
+              type="range"
+              class="video-volume-slider"
+              min="0"
+              max="1"
+              step="0.01"
+              :value="videoVolume"
+              @input="onVolumeInput"
+              :style="{ '--progress': (videoVolume * 100) + '%' }"
+            />
+          </div>
+
+          <button class="ctrl-btn fullscreen-btn" @click="goFullscreen" title="Fullscreen"><Maximize :size="24" /></button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.mvd-page { min-height: 100vh; background: var(--bg-base); }
-
-.mvd-body {
-  max-width: 960px; margin: 0 auto;
-  padding: 0 28px 80px;
+.mvd-page {
+  background: radial-gradient(circle at top, #1a1a1a 0%, var(--bg-base) 100%);
+  min-height: 100vh;
 }
 
-/* Video */
-.video-wrap {
-  width: 100%; aspect-ratio: 16/9;
-  background: #000; border-radius: var(--radius-lg);
-  overflow: hidden; position: relative;
-  box-shadow: 0 24px 60px rgba(0,0,0,0.7);
-  margin-bottom: 20px;
-  border: 1px solid rgba(255,255,255,0.05);
+.mvd-header {
+  padding-bottom: 16px;
 }
 
-.video-el { width: 100%; height: 100%; object-fit: contain; display: block; }
+.mvd-content {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 32px 64px;
+}
+
+.video-container {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background-color: #000;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+  margin-bottom: 24px;
+}
+
+.video-player {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 
 .video-overlay {
-  position: absolute; inset: 0;
-  background: rgba(0,0,0,0.38);
-  display: flex; align-items: center; justify-content: center;
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.3s;
   cursor: pointer;
 }
-.overlay-fade-enter-active, .overlay-fade-leave-active { transition: opacity 0.25s ease; }
-.overlay-fade-enter-from, .overlay-fade-leave-to { opacity: 0; }
 
-.big-play-btn {
-  width: 88px; height: 88px; border-radius: 50%;
-  background: rgba(0,0,0,0.55); backdrop-filter: blur(8px);
-  border: 2px solid rgba(255,255,255,0.25);
-  display: flex; align-items: center; justify-content: center; color: #fff;
-  transition: all var(--transition);
+.video-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
 }
-.big-play-btn:hover { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #000; border-color: transparent; transform: scale(1.08); }
 
-.exit-fs-btn {
-  position: absolute; top: 16px; right: 16px;
-  width: 40px; height: 40px; border-radius: 10px;
-  background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.15); color: #fff;
-  display: flex; align-items: center; justify-content: center; cursor: pointer;
-  transition: all var(--transition); z-index: 10;
+.video-play-overlay {
+  background: rgba(0,0,0,0.6);
+  color: #ffffff;
+  border: none;
+  border-radius: 50%;
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
 }
-.exit-fs-btn:hover { background: rgba(255,255,255,0.15); }
 
-/* Info */
-.mvd-info-row {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 16px; margin-bottom: 20px;
+.video-play-overlay:hover {
+  transform: scale(1.1);
+  background: var(--accent);
 }
-.mvd-title { font-size: 1.7rem; font-weight: 900; margin: 0 0 4px; letter-spacing: -0.5px; }
-.mvd-artist { color: var(--text-secondary); margin: 0; font-size: 1rem; }
-.song-pill {
-  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
-  background: var(--bg-elevated); border: 1px solid rgba(255,255,255,0.08);
-  color: var(--text-primary); border-radius: var(--radius-full);
-  padding: 10px 18px; font-size: 0.85rem; font-weight: 600;
-  cursor: pointer; transition: all var(--transition); font-family: var(--font-family);
-}
-.song-pill:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
 
-/* Controls */
-.controls-panel {
-  background: var(--bg-card); border: 1px solid rgba(255,255,255,0.05);
-  border-radius: var(--radius-md); padding: 20px 28px;
-  display: flex; align-items: center; gap: 16px; justify-content: center;
+.mvd-info {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.mvd-title {
+  font-size: 1.8rem;
+  font-weight: 800;
+  margin: 0 0 4px;
+}
+
+.mvd-artist {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.song-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--text-subdued);
+  border-radius: var(--radius-full);
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.song-btn:hover {
+  background-color: var(--bg-highlight);
+  border-color: var(--text-primary);
+}
+
+.mvd-controls {
+  background-color: var(--bg-surface);
+  padding: 24px;
+  border-radius: var(--radius-md);
+}
+
+.mvd-buttons {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: center;
+  position: relative;
 }
 
 .ctrl-btn {
-  background: none; border: none; color: var(--text-secondary); cursor: pointer;
-  display: flex; align-items: center; padding: 6px; border-radius: 8px;
-  transition: all var(--transition);
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
 }
-.ctrl-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.07); }
 
-.main-play-btn {
-  width: 52px; height: 52px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  color: #000; border: none;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: all var(--transition);
-  box-shadow: 0 6px 20px rgba(0,210,200,0.4);
+.ctrl-btn:hover {
+  color: var(--text-primary);
 }
-.main-play-btn:hover { transform: scale(1.08); box-shadow: 0 10px 28px rgba(0,210,200,0.55); }
-.main-play-btn:active { transform: scale(0.94); }
 
-.vol-group {
-  display: flex; align-items: center; gap: 8px;
+.play-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--text-primary);
+  color: var(--bg-base);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.play-btn:hover {
+  transform: scale(1.05);
+}
+
+.play-btn:active {
+  transform: scale(0.95);
+}
+
+/* ── Volume control styles ────────────────────────────────── */
+.video-volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-left: 8px;
 }
 
-.vol-slider {
-  width: 88px; -webkit-appearance: none; appearance: none;
-  height: 4px; border-radius: 2px; outline: none; cursor: pointer;
+.video-volume-slider {
+  width: 90px;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
   background: linear-gradient(
     to right,
-    var(--accent) 0%, var(--accent) var(--progress, 100%),
-    var(--bg-highlight) var(--progress, 100%), var(--bg-highlight) 100%
+    var(--text-primary) 0%,
+    var(--text-primary) var(--progress, 100%),
+    var(--bg-highlight) var(--progress, 100%),
+    var(--bg-highlight) 100%
   );
+  outline: none;
+  cursor: pointer;
 }
-.vol-slider::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 12px; height: 12px;
-  border-radius: 50%; background: var(--text-primary); cursor: pointer;
+
+.video-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  cursor: pointer;
   transition: transform 0.15s;
 }
-.vol-slider::-webkit-slider-thumb:hover { transform: scale(1.3); background: var(--accent); }
 
-.fs-btn { margin-left: auto; }
+.video-volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+  background: var(--accent);
+}
+
+.video-volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text-primary);
+  cursor: pointer;
+}
+
+.fullscreen-btn {
+  margin-left: auto;
+}
+
+.exit-fs-btn {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  background: rgba(0,0,0,0.6);
+  color: #ffffff;
+  border: none;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.exit-fs-btn:hover {
+  background: var(--accent);
+  transform: scale(1.1);
+}
 </style>

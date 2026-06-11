@@ -33,7 +33,7 @@ onMounted(() => {
   background: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-family);
-  transition: background 0.4s ease, color 0.4s ease;
+  transition: background 0.3s, color 0.3s;
 }
 
 .app-main {
@@ -43,7 +43,6 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  min-width: 0;
 }
 
 .app-content {
@@ -52,14 +51,9 @@ onMounted(() => {
   overflow-x: hidden;
 }
 
-/* Router transition */
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.22s ease, transform 0.22s ease;
-}
-.fade-enter-from { opacity: 0; transform: translateY(10px); }
-.fade-leave-to   { opacity: 0; transform: translateY(-6px); }
-
 @media (max-width: 768px) {
-  .app-main { margin-left: 0; }
+  .app-main {
+    margin-left: 0;
+  }
 }
 </style>
